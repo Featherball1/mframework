@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mframework"
+version = "0.1.0"
+description = "My mini deep learning framework"
+authors = [
+    { name="Your Name", email="you@example.com" }
+]
+dependencies = ["numpy"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mframework"]
+exclude = ["notebooks", "tests"]
