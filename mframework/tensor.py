@@ -1,20 +1,26 @@
-from typing import Callable, Type
+from typing import Callable, Type, Tuple
 
 import numpy as np
 
 from mframework.backend import Backend, BackendArray, NumpyBackend
 from mframework.function import Function, Context
-from mframework.ops.arithmetic import (
-    Add, Mul,
-    Sum,
-    Transpose
-)
+from mframework.ops import *
 
 DEFAULT_BACKEND = NumpyBackend()
 
 """
-Tensor
+Tensor.
 
+Two key methods:
+    - _apply: apply a function to this tensor and create a closure for its local gradient
+    - backward: run backpropagation from this tensor
+
+Local gradients:
+    - Each tensor resulting from an operation has a _local_grad closure that calls the relevant Function.backward
+      and scatters gradients to its parents.
+
+Backpropagation:
+    - The backward method does a topological sort of the computation graph and calls each tensor's _local_grad in reverse order.
 """
 
 class Tensor:
@@ -29,9 +35,34 @@ class Tensor:
         self._requires_grad = requires_grad
         self._children: set[Tensor] | None = None
         self._op_str: str | None = None
-        self._backward: Callable | None = None
+        self._local_grad: Callable | None = None
         self._grad: BackendArray = None
+
+    def backward(self) -> None:
+        if self._grad is None:
+            self._grad = self._backend.ones(self._data.shape)
+
+        topo_sorted: list["Tensor"] = []
+        visited: set["Tensor"] = set()
+
+        def build_topo(t: "Tensor"):
+            if t not in visited:
+                visited.add(t)
+                if t._children is not None:
+                    for child in t._children:
+                        build_topo(child)
+                topo_sorted.append(t)
+
+        build_topo(self)
     
+        for tensor in reversed(topo_sorted):
+            if tensor._local_grad:
+                tensor._local_grad()
+
+    """
+    Core internal class methods - wiring up ops and tensors. 
+    """
+
     def _promote_other(self, other: object) -> "Tensor":
         """
         Ensure `other` is a Tensor on the same backend as `self`.
@@ -51,7 +82,7 @@ class Tensor:
     def _add_grad(self, t: "Tensor", g: np.ndarray) -> None:
         """
         Accumulate gradient `g` into `t._grad`. 
-        Instead of writing `t._grad += g` in `_backward`, the `_add_grad` function is a
+        Instead of writing `t._grad += g` in `_local_grad`, the `_add_grad` function is a
         central entry point that allows us more detailed control (adding hooks, handling broadcasting, modifying gradients globally, etc). 
         If t._grad is None (ie not yet initialised), sets it to all zeros.  
         TODO:
@@ -63,12 +94,13 @@ class Tensor:
         # Hooks run here...
         # Broadcasting runs here...
         # Gradient accumulation step
+
         t._grad += g
 
     def _apply(self, f: Type[Function], *args, **kwargs):
         """
         Unwrap Tensor arguments into raw arrays, call forward(ctx, ...) and wrap output Tensor.
-        The returned Tensor has a _backward closure that calls cls.backward and scatters gradients.
+        The returned Tensor has a _local_grad closure that calls cls.backward and scatters gradients.
 
         Really, this method should belong to Function, but having it here avoids circular imports.
         """
@@ -89,7 +121,7 @@ class Tensor:
         }
         out._op_str = f.__name__.upper()
 
-        def _backward():
+        def _local_grad():
             if out._grad is None: return
             grads = f.backward(ctx, out._grad)
             if grads is None: return
@@ -98,25 +130,57 @@ class Tensor:
                 grads = (grads,)
             gi = 0
             for inp in args:
-                if isinstance(inp, Tensor) and g is not None:
+                if isinstance(inp, Tensor):
                     g = grads[gi]
-                    gi += 1
-                    self._add_grad(inp, g)
+                    if g is not None:
+                        gi += 1
+                        self._add_grad(inp, g)
                 else:
                     # For a non-Tensor arg, consume on entry from the grads
                     gi += 1
 
-        out._backward = _backward
+        out._local_grad = _local_grad
 
         return out
 
+    # Arithmetic operations
     def __add__(self, other: object) -> "Tensor":
         other = self._promote_other(other)
         return self._apply(Add, self, other)
+    def __sub__(self, other: object) -> "Tensor":
+        other = self._promote_other(other)
+        return self._apply(Sub, self, other)
     def __mul__(self, other: object) -> "Tensor":
         other = self._promote_other(other)
         return self._apply(Mul, self, other)
+    def __truediv__(self, other: object) -> "Tensor":
+        other = self._promote_other(other)
+        return self._apply(Div, self, other)
+    def __matmul__(self, other: object) -> "Tensor":
+        other = self._promote_other(other)
+        return self._apply(MatMul, self, other)
+    def __neg__(self) -> "Tensor":
+        return self._apply(Neg, self)
 
+    # Reduction operations
+    def sum(self, axis: int | None = None, keepdims: bool = False) -> "Tensor":
+        return self._apply(Sum, self, axis=axis, keepdims=keepdims)
+
+    # Shape operations
+    def transpose(self) -> "Tensor":
+        return self._apply(Transpose, self)
+    def reshape(self, newshape: Tuple[int,...]) -> "Tensor":
+        return self._apply(Reshape, self, newshape)
+
+    # Basic mathematical functions
+    def exp(self) -> "Tensor":
+        return self._apply(Exp, self)
+    def log(self) -> "Tensor":
+        return self._apply(Log, self)
+    def relu(self) -> "Tensor":
+        return self._apply(ReLU, self)
+
+    # Properties
     @property
     def T(self) -> "Tensor":
         return self._apply(Transpose, self)
@@ -124,6 +188,22 @@ class Tensor:
     def shape(self) -> tuple:
         return self._data.shape
 
+    """
+    Helper methods.
+    """
+
+    def detach(self) -> "Tensor":
+        return Tensor(self._data.copy(), self._backend, requires_grad=False)
+    def detach_(self) -> "Tensor":
+        self._requires_grad = False
+        self._children = set()
+        self._backward = lambda : None
+        return self
+
+    # Gradient hooks...
+
+    def __repr__(self) -> str:
+        return f"Tensor({self._data}, requires_grad={self._requires_grad})"
 
 class Parameter(Tensor):
     """
