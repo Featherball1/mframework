@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Union, Tuple
+from enum import Enum
 
 """
 A Backend contains a registry of primitive operations.
@@ -12,6 +13,10 @@ As a rule of thumb - import numpy as np, import cupy as cp, should only appear i
 
 # Later: Union[np.ndarray, cp.ndarray]
 type BackendArray  = Union[np.ndarray, "cp.ndarray"]
+
+class BackendType(Enum):
+    NUMPY = "numpy"
+    CUPY = "cupy"
 
 class Backend:
     def as_array(self, a) -> BackendArray:
