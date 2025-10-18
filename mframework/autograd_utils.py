@@ -40,3 +40,36 @@ def unbroadcast(grad: BackendArray, shape: Tuple[int, ...], backend: Backend) ->
     # final reshape to exact target shape
     grad = backend.reshape(grad, tuple(target_shape))
     return grad
+
+def gradcheck(fn, inputs, backend: Backend, eps=1e-4, tol=1e-3):
+    """
+    Finite difference gradient check.
+    Used in the autograd testing strategy to verify local gradients match their finite difference approximation.
+
+    For the purposes of autograd it is enough to consider gradcheck to be the "oracle" for local gradient testing.
+    """
+    # Forward pass
+    out = fn(*inputs)
+    out.backward()
+
+    for x in inputs:
+        if not getattr(x, "requires_grad", False):
+            continue
+
+        numerical_grad = np.zeros_like(x._data)
+        it = np.nditer(x._data, flags=['multi_index'], op_flags=['readwrite'])
+        while not it.finished:
+            idx = it.multi_index
+            old_val = x._data[idx]
+            x._data[idx] = old_val + eps
+            out1 = fn(*inputs)._data.copy()
+            x._data[idx] = old_val - eps
+            out2 = fn(*inputs)._data.copy()
+            x._data[idx] = old_val
+
+            numerical_grad[idx] = backend.sum((out1 - out2) / (2 * eps))
+            it.iternext()
+
+        assert np.allclose(
+            x.grad, numerical_grad, atol=tol
+        ), f"Gradcheck failed for {fn.__name__} at {idx}"
