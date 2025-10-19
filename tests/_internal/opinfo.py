@@ -1,9 +1,9 @@
 from typing import Callable, Any
 from dataclasses import dataclass
 
-from mframework.backend import BackendType, Backend
-from mframework import functional as F
-from mframework.tensor import Tensor
+from mframework.autograd.backend import BackendType, Backend
+from mframework.autograd import functional as F
+from mframework.autograd.tensor import Tensor
 
 """
 opinfo.py is part of the mframework testing infrastructure.
@@ -44,6 +44,8 @@ op_db = arithmetic_ops + function_ops + ...
 """
 
 op_db = [
+    # TODO: add matmul, neg, flatten
+
     # Arithmetic ops
     OpInfo(
         name="add",

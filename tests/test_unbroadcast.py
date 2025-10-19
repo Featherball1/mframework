@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 # Can test any backend
-from mframework.backend import NumpyBackend
-from mframework.autograd_utils import unbroadcast
+from mframework.autograd.backend import NumpyBackend
+from mframework.autograd.autograd_utils import unbroadcast
 
 backend = NumpyBackend()
 

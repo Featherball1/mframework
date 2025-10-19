@@ -1,8 +1,8 @@
 import pytest
 
-from mframework.autograd_utils import gradcheck
-from mframework.tensor import Tensor
-from mframework.backend import Backend
+from mframework.autograd.autograd_utils import gradcheck
+from mframework.autograd.tensor import Tensor
+from mframework.autograd.backend import Backend
 
 
 from _internal.opinfo import OpInfo

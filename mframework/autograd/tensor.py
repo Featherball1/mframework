@@ -2,9 +2,9 @@ from typing import Callable, Type, Tuple
 
 import numpy as np
 
-from mframework.backend import Backend, BackendArray, NumpyBackend
-from mframework.function import Function, Context
-from mframework.ops import *
+from mframework.autograd.backend import Backend, BackendArray, NumpyBackend
+from mframework.autograd.function import Function, Context
+from mframework.autograd.ops import *
 
 DEFAULT_BACKEND = NumpyBackend()
 
@@ -87,7 +87,6 @@ class Tensor:
         If t._grad is None (ie not yet initialised), sets it to all zeros.  
         TODO:
             Handle hooks
-            Safely handle broadcasting
         """
         if t._requires_grad == False: return
         if t._grad is None: t._grad = np.zeros_like(t._data, dtype=np.float32)
@@ -171,6 +170,8 @@ class Tensor:
         return self._apply(Transpose, self)
     def reshape(self, newshape: Tuple[int,...]) -> "Tensor":
         return self._apply(Reshape, self, newshape)
+    def flatten(self) -> "Tensor":
+        return self._apply(Flatten, self)
 
     # Basic mathematical functions
     def exp(self) -> "Tensor":

@@ -36,6 +36,7 @@ class Backend:
     # Shape operations
     def transpose(self, a: BackendArray) -> BackendArray : raise NotImplementedError
     def reshape(self, a: BackendArray, newshape: Tuple[int, ...]) -> BackendArray : raise NotImplementedError
+    def flatten(self, a: BackendArray) -> BackendArray : raise NotImplementedError
     def ndim(self, a: BackendArray) -> int : raise NotImplementedError
     def shape(self, a: BackendArray) -> Tuple[int, ...] : raise NotImplementedError
 
@@ -75,6 +76,7 @@ class NumpyBackend(Backend):
     # Shape operations
     def transpose(self, a: np.ndarray) -> np.ndarray: return np.transpose(a)
     def reshape(self, a: np.ndarray, newshape: Tuple[int, ...]) -> np.ndarray: return np.reshape(a, newshape)
+    def flatten(self, a: np.ndarray) -> np.ndarray: return a.flatten()
     def ndim(self, a: np.ndarray) -> int: return a.ndim
     def shape(self, a: np.ndarray) -> tuple: return a.shape
 

@@ -1,5 +1,5 @@
-from mframework.function import Function, Context
-from mframework.autograd_utils import unbroadcast
+from mframework.autograd.function import Function, Context
+from mframework.autograd.autograd_utils import unbroadcast
 
 """
 Reduction operations (sum, mean, etc.)

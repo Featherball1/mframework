@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from mframework.function import Function, Context
+from mframework.autograd.function import Function, Context
 
 """
 Shape operations (transpose, reshape, etc.)
@@ -31,11 +31,13 @@ class Reshape(Function):
 class Flatten(Function):
     @staticmethod
     def forward(ctx, a):
-        raise NotImplementedError
+        ctx.save_for_backward(a.shape)
+        return ctx.backend.flatten(a)
 
     @staticmethod
     def backward(ctx, grad_out):
-        raise NotImplementedError
+        (a_shape,) = ctx.saved_for_backward
+        raise ctx.backend.reshape(grad_out, a_shape)
 
 class Gather(Function):
     @staticmethod

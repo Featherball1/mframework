@@ -1,7 +1,7 @@
 from typing import Tuple
 
-from mframework.function import Function, Context
-from mframework.backend import Backend, BackendArray
+from mframework.autograd.function import Function, Context
+from mframework.autograd.backend import BackendArray
 
 """
 Autograd functions for basic functions of tensors. 

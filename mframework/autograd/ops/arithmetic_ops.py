@@ -1,6 +1,6 @@
 from typing import Any
-from mframework.function import Function, Context
-from mframework.autograd_utils import unbroadcast
+from mframework.autograd.function import Function, Context
+from mframework.autograd.autograd_utils import unbroadcast
 
 """
 Autograd Functions for arithmetic operations.

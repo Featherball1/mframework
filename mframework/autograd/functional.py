@@ -1,5 +1,5 @@
 from typing import Tuple
-from mframework.tensor import Tensor
+from mframework.autograd.tensor import Tensor
 
 """
 There are two ways to call ops in mframework:

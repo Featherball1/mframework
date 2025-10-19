@@ -1,6 +1,6 @@
 import pytest
 
-from mframework.backend import NumpyBackend
+from mframework.autograd.backend import NumpyBackend
 
 from _internal.opinfo import op_db
 

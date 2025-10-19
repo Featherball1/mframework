@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 
-from mframework.backend import Backend, BackendArray
+from mframework.autograd.backend import Backend, BackendArray
 
 def unbroadcast(grad: BackendArray, shape: Tuple[int, ...], backend: Backend) -> BackendArray:
     """
