@@ -215,3 +215,13 @@ class Parameter(Tensor):
 
     def __init__(self, data: BackendArray, backend: Backend) -> None:
         super().__init__(data, backend, requires_grad=True)
+
+class Buffer(Tensor):
+    """
+    Taking inspiration from Pytorch, a buffer is a tensor that:
+        - always has requires_grad = False
+        - is recognised by module buffer lists
+    """
+
+    def __init__(self, data: BackendArray, backend: Backend) -> None:
+        super().__init__(data, backend, requires_grad=False)
