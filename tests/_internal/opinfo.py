@@ -2,7 +2,7 @@ from typing import Callable, Any
 from dataclasses import dataclass
 
 from mframework.autograd.backend import BackendType, Backend
-from mframework.autograd import functional as F
+from mframework import functional as F
 from mframework.autograd.tensor import Tensor
 
 """
