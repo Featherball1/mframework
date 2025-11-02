@@ -2,14 +2,15 @@ from typing import Callable, Type, Tuple
 
 import numpy as np
 
+from mframework.state import get_backend
 from mframework.autograd.backend import Backend, BackendArray, NumpyBackend
 from mframework.autograd.function import Function, Context
 from mframework.autograd.ops import *
 
-DEFAULT_BACKEND = NumpyBackend()
 
 """
-Tensor.
+Tensors
+-------
 
 Two key methods:
     - _apply: apply a function to this tensor and create a closure for its local gradient
@@ -30,7 +31,7 @@ class Tensor:
         backend: Backend | None = None,
         requires_grad: bool = False
     ) -> None:
-        self._backend = backend if backend else DEFAULT_BACKEND
+        self._backend = backend if backend else get_backend()
         self._data = self._backend.as_array(data)
         self._requires_grad = requires_grad
         self._children: set[Tensor] | None = None
@@ -213,7 +214,7 @@ class Parameter(Tensor):
         - is recognised by module parameter lists
     """
 
-    def __init__(self, data: BackendArray, backend: Backend) -> None:
+    def __init__(self, data: BackendArray, backend: Backend | None = None) -> None:
         super().__init__(data, backend, requires_grad=True)
 
 class Buffer(Tensor):
@@ -223,5 +224,5 @@ class Buffer(Tensor):
         - is recognised by module buffer lists
     """
 
-    def __init__(self, data: BackendArray, backend: Backend) -> None:
+    def __init__(self, data: BackendArray, backend: Backend | None = None) -> None:
         super().__init__(data, backend, requires_grad=False)
