@@ -165,6 +165,12 @@ class Tensor:
     # Reduction operations
     def sum(self, axis: int | None = None, keepdims: bool = False) -> "Tensor":
         return self._apply(Sum, self, axis=axis, keepdims=keepdims)
+    def mean(self, axis: int | None = None, keepdims: bool = False) -> "Tensor":
+        return self._apply(Mean, self, axis=axis, keepdims=keepdims)
+    def max(self, axis: int | None = None, keepdims: bool = False) -> "Tensor":
+        return self._apply(Max, self, axis=axis, keepdims=keepdims)
+    def min(self, axis: int | None = None, keepdims: bool = False) -> "Tensor":
+        return self._apply(Min, self, axis=axis, keepdims=keepdims)
 
     # Shape operations
     def transpose(self) -> "Tensor":
@@ -181,6 +187,12 @@ class Tensor:
         return self._apply(Log, self)
     def relu(self) -> "Tensor":
         return self._apply(ReLU, self)
+    def max_eltwise(self, other: object) -> "Tensor":
+        other = self._promote_other(other)
+        return self._apply(MaxEltwise, self, other)
+    def min_eltwise(self, other: object) -> "Tensor":
+        other = self._promote_other(other)
+        return self._apply(MinEltwise, self, other)
 
     # Properties
     @property

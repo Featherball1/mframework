@@ -40,3 +40,42 @@ class ReLU(Function):
         (a,) = ctx.saved_for_backward
         grad_a = ctx.backend.where(a > 0, ctx.backend.ones(ctx.backend.shape(a)), ctx.backend.zeros(ctx.backend.shape(a)))
         return (ctx.backend.mul(grad_out, grad_a),)
+
+class MaxEltwise(Function):
+    @staticmethod
+    def forward(ctx: Context, a: BackendArray, b: BackendArray) -> BackendArray:
+        ctx.save_for_backward(a, b)
+        return ctx.backend.max_eltwise(a, b)
+
+    @staticmethod
+    def backward(ctx: Context, grad_out: BackendArray):
+        a, b = ctx.saved_for_backward
+        a_mask = ctx.backend.where(a > b, 1.0, 0.0)
+        b_mask = ctx.backend.where(b > a, 1.0, 0.0)
+        eq_mask = ctx.backend.where(a == b, 0.5, 0.0)
+        a_mask = ctx.backend.add(a_mask, eq_mask)
+        b_mask = ctx.backend.add(b_mask, eq_mask)
+        return (
+            ctx.backend.mul(grad_out, a_mask),
+            ctx.backend.mul(grad_out, b_mask)
+        )
+
+
+class MinEltwise(Function):
+    @staticmethod
+    def forward(ctx: Context, a: BackendArray, b: BackendArray) -> BackendArray:
+        ctx.save_for_backward(a, b)
+        return ctx.backend.min_eltwise(a, b)
+
+    @staticmethod
+    def backward(ctx: Context, grad_out: BackendArray):
+        a, b = ctx.saved_for_backward
+        a_mask = ctx.backend.where(a < b, 1.0, 0.0)
+        b_mask = ctx.backend.where(b < a, 1.0, 0.0)
+        eq_mask = ctx.backend.where(a == b, 0.5, 0.0)
+        a_mask = ctx.backend.add(a_mask, eq_mask)
+        b_mask = ctx.backend.add(b_mask, eq_mask)
+        return (
+            ctx.backend.mul(grad_out, a_mask),
+            ctx.backend.mul(grad_out, b_mask)
+        )

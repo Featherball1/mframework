@@ -42,10 +42,14 @@ class Backend:
 
     # Reduction operations
     def sum(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray : raise NotImplementedError
-    def maximum(self, a: BackendArray) -> BackendArray : raise NotImplementedError
-    def minimum(self, a: BackendArray) -> BackendArray : raise NotImplementedError
-    def max_eltwise(self, a: BackendArray, b) -> BackendArray : raise NotImplementedError
-    def min_eltwise(self, a: BackendArray, b) -> BackendArray : raise NotImplementedError
+    def prod(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray: raise NotImplementedError
+    def mean(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray: raise NotImplementedError
+    def maximum(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray : raise NotImplementedError
+    def minimum(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray : raise NotImplementedError
+    def max_eltwise(self, a: BackendArray, b: BackendArray) -> BackendArray : raise NotImplementedError
+    def min_eltwise(self, a: BackendArray, b: BackendArray) -> BackendArray : raise NotImplementedError
+    def argmax(self, a: BackendArray, axis: int | None = None, keepdims: bool = False) -> BackendArray: raise NotImplementedError
+    def argmin(self, a: BackendArray, axis: int | None = None, keepdims: bool = False) -> BackendArray: raise NotImplementedError
 
     # BackendArray creation
     def ones(self, shape: tuple[int, ...]) -> BackendArray : raise NotImplementedError
@@ -87,10 +91,14 @@ class NumpyBackend(Backend):
 
     # Reduction operations
     def sum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.sum(a, axis=axis, keepdims=keepdims)
-    def maximum(self, a: np.ndarray) -> np.ndarray: return np.max(a)
-    def minimum(self, a: np.ndarray) -> np.ndarray: return np.min(a)
-    def max_eltwise(self, a: np.ndarray, b) -> np.ndarray: return np.maximum(a, b)
-    def min_eltwise(self, a: np.ndarray, b) -> np.ndarray: return np.minimum(a, b)
+    def prod(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.prod(a, axis=axis, keepdims=keepdims)
+    def mean(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: raise np.mean(a, axis=axis, keepdims=keepdims)
+    def maximum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.max(a, axis=axis, keepdims=keepdims)
+    def minimum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.min(a, axis=axis, keepdims=keepdims)
+    def max_eltwise(self, a: np.ndarray, b: np.ndarray) -> np.ndarray: return np.maximum(a, b)
+    def min_eltwise(self, a: np.ndarray, b: np.ndarray) -> np.ndarray: return np.minimum(a, b)
+    def argmax(self, a: np.ndarray, axis: int | None = None, keepdims: bool = False) -> np.ndarray: return np.argmax(a, axis=axis, keepdims=keepdims)
+    def argmin(self, a: np.ndarray, axis: int | None = None, keepdims: bool = False) -> np.ndarray: return np.argmin(a, axis=axis, keepdims=keepdims)
 
     # BackendArray creation
     def ones(self, shape: tuple[int, ...]) -> np.ndarray: return np.ones(shape, dtype=np.float32)

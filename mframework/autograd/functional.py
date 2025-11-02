@@ -33,6 +33,21 @@ def neg(a: Tensor) -> Tensor:
 def sum(a: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
     return a.sum(axis=axis, keepdims=keepdims)
 
+def mean(a: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
+    return a.mean(axis=axis, keepdims=keepdims)
+
+def max(a: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
+    return a.max(axis=axis, keepdims=keepdims)
+
+def min(a: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
+    return a.min(axis=axis, keepdims=keepdims)
+
+def max_eltwise(a: Tensor, b: Tensor) -> Tensor:
+    return a.max_eltwise(b)
+
+def min_eltwise(a: Tensor, b: Tensor) -> Tensor:
+    return a.min_eltwise(b)
+
 
 # Function ops
 def exp(a: Tensor) -> Tensor:
