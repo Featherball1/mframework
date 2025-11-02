@@ -33,10 +33,15 @@ class Mean(Function):
                 axes = (axis,)
             else:
                 axes = tuple(axis)
-            divisor = 1
-            for ax in axes:
-                divisor *= a_shape[ax]
+            divisor = ctx.backend.prod([a_shape[i] for i in axes])
         g = grad_out / divisor
+        # Ensure reduced axes are present before unbroadcast
+        if axis is not None and not keepdims:
+            if isinstance(axis, int):
+                axis = (axis,)
+            for ax in sorted(axis):
+                g = ctx.backend.expand_dims(g, ax)
+        g = ctx.backend.broadcast_to(g, a_shape)
         return (unbroadcast(g, a_shape, ctx.backend),)
 
 class Max(Function):

@@ -162,6 +162,40 @@ op_db = [
         broadcasts=False,
         backends=[BackendType.NUMPY],
     ),
+    OpInfo(
+        name="max_eltwise",
+        op=F.max_eltwise,
+        sample_inputs=lambda backend: [
+            (
+                Tensor(backend.as_array([1.0, 3.0, 5.0]), backend=backend, requires_grad=True),
+                Tensor(backend.as_array([2.0, 2.0, 4.0]), backend=backend, requires_grad=True),
+            ),
+            (
+                Tensor(backend.as_array([[1.0], [4.0]]), backend=backend, requires_grad=True),
+                Tensor(backend.as_array([[2.0, 3.0]]), backend=backend, requires_grad=True),
+            ),
+        ],
+        supports_autograd=True,
+        broadcasts=True,
+        backends=[BackendType.NUMPY],
+    ),
+    OpInfo(
+        name="min_eltwise",
+        op=F.min_eltwise,
+        sample_inputs=lambda backend: [
+            (
+                Tensor(backend.as_array([1.0, 3.0, 5.0]), backend=backend, requires_grad=True),
+                Tensor(backend.as_array([2.0, 2.0, 4.0]), backend=backend, requires_grad=True),
+            ),
+            (
+                Tensor(backend.as_array([[1.0], [4.0]]), backend=backend, requires_grad=True),
+                Tensor(backend.as_array([[2.0, 3.0]]), backend=backend, requires_grad=True),
+            ),
+        ],
+        supports_autograd=True,
+        broadcasts=True,
+        backends=[BackendType.NUMPY],
+    ),
 
     # Reduction ops
     OpInfo(
@@ -174,6 +208,57 @@ op_db = [
             (
                 Tensor(backend.as_array([[[1.0, 2.0], [3.0, 4.0]]]), backend=backend, requires_grad=True),
             )
+        ],
+        supports_autograd=True,
+        broadcasts=False,
+        backends=[BackendType.NUMPY],
+    ),
+    OpInfo(
+        name="mean",
+        op=F.mean,
+        sample_inputs=lambda backend: [
+            (
+                Tensor(backend.as_array([[1.0, 2.0], [3.0, 4.0]]), backend=backend, requires_grad=True),
+            ),
+            (
+                Tensor(backend.as_array([[[1.0, 2.0], [3.0, 4.0]]]), backend=backend, requires_grad=True),
+            ),
+            (
+                Tensor(backend.as_array([[1.0, 2.0], [3.0, 4.0]]), backend=backend, requires_grad=True),
+                1,  # axis argument
+            ),
+        ],
+        supports_autograd=True,
+        broadcasts=False,
+        backends=[BackendType.NUMPY],
+    ),
+    OpInfo(
+        name="max",
+        op=F.max,
+        sample_inputs=lambda backend: [
+            (
+                Tensor(backend.as_array([[1.0, 5.0], [3.0, 4.0]]), backend=backend, requires_grad=True),
+            ),
+            (
+                Tensor(backend.as_array([[[1.0, 7.0], [3.0, 2.0]]]), backend=backend, requires_grad=True),
+                1,
+            ),
+        ],
+        supports_autograd=True,
+        broadcasts=False,
+        backends=[BackendType.NUMPY],
+    ),
+    OpInfo(
+        name="min",
+        op=F.min,
+        sample_inputs=lambda backend: [
+            (
+                Tensor(backend.as_array([[1.0, 5.0], [3.0, 4.0]]), backend=backend, requires_grad=True),
+            ),
+            (
+                Tensor(backend.as_array([[[1.0, 7.0], [3.0, 2.0]]]), backend=backend, requires_grad=True),
+                1,
+            ),
         ],
         supports_autograd=True,
         broadcasts=False,

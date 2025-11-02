@@ -2,6 +2,7 @@ from typing import Tuple
 
 from mframework.autograd.function import Function, Context
 from mframework.autograd.backend import BackendArray
+from mframework.autograd.autograd_utils import unbroadcast
 
 """
 Autograd functions for basic functions of tensors. 
@@ -56,8 +57,8 @@ class MaxEltwise(Function):
         a_mask = ctx.backend.add(a_mask, eq_mask)
         b_mask = ctx.backend.add(b_mask, eq_mask)
         return (
-            ctx.backend.mul(grad_out, a_mask),
-            ctx.backend.mul(grad_out, b_mask)
+            unbroadcast(ctx.backend.mul(grad_out, a_mask), a.shape, ctx.backend),
+            unbroadcast(ctx.backend.mul(grad_out, b_mask), b.shape, ctx.backend)
         )
 
 
@@ -76,6 +77,6 @@ class MinEltwise(Function):
         a_mask = ctx.backend.add(a_mask, eq_mask)
         b_mask = ctx.backend.add(b_mask, eq_mask)
         return (
-            ctx.backend.mul(grad_out, a_mask),
-            ctx.backend.mul(grad_out, b_mask)
+            unbroadcast(ctx.backend.mul(grad_out, a_mask), a.shape, ctx.backend),
+            unbroadcast(ctx.backend.mul(grad_out, b_mask), b.shape, ctx.backend)
         )

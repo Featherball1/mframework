@@ -39,6 +39,8 @@ class Backend:
     def flatten(self, a: BackendArray) -> BackendArray : raise NotImplementedError
     def ndim(self, a: BackendArray) -> int : raise NotImplementedError
     def shape(self, a: BackendArray) -> tuple[int, ...] : raise NotImplementedError
+    def expand_dims(self, a: BackendArray, axis: int | tuple[int, ...]) -> BackendArray: raise NotImplementedError
+    def broadcast_to(self, a: BackendArray, shape: int | tuple[int, ...]) -> BackendArray: raise NotImplementedError
 
     # Reduction operations
     def sum(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray : raise NotImplementedError
@@ -88,11 +90,13 @@ class NumpyBackend(Backend):
     def flatten(self, a: np.ndarray) -> np.ndarray: return a.flatten()
     def ndim(self, a: np.ndarray) -> int: return a.ndim
     def shape(self, a: np.ndarray) -> tuple: return a.shape
+    def expand_dims(self, a: np.ndarray, axis: int | tuple[int, ...]) -> np.ndarray: return np.expand_dims(a, axis)
+    def broadcast_to(self, a: np.ndarray, shape: int | tuple[int, ...]) -> np.ndarray: return np.broadcast_to(a, shape)
 
     # Reduction operations
     def sum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.sum(a, axis=axis, keepdims=keepdims)
     def prod(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.prod(a, axis=axis, keepdims=keepdims)
-    def mean(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: raise np.mean(a, axis=axis, keepdims=keepdims)
+    def mean(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.mean(a, axis=axis, keepdims=keepdims)
     def maximum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.max(a, axis=axis, keepdims=keepdims)
     def minimum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.min(a, axis=axis, keepdims=keepdims)
     def max_eltwise(self, a: np.ndarray, b: np.ndarray) -> np.ndarray: return np.maximum(a, b)
