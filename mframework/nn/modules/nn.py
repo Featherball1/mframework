@@ -4,7 +4,7 @@ from mframework.state import get_backend
 from mframework.autograd.backend import Backend
 from mframework.nn.module import Module
 from mframework.autograd.tensor import Tensor, Parameter
-import mframework.autograd.functional as F
+import mframework.functional as F
 
 # Layers
 
@@ -14,10 +14,8 @@ class Linear(Module):
         in_features: int,
         out_features: int,
         bias: bool = True,
-        backend: Backend | None = None
     ):
         super().__init__()
-        self._backend = backend if backend else get_backend()
 
         self._in_features: int = in_features
         self._out_features: int = out_features
@@ -25,11 +23,11 @@ class Linear(Module):
         # Xavier initialization
         limit = sqrt(6 / (in_features + out_features))
         self.weight = Parameter(
-            self._backend.uniform(-limit, limit, (out_features, in_features))
+            F.uniform(-limit, limit, (out_features, in_features))
         )
         self.bias = Parameter(
-            self._backend.zeros((out_features,))
-        ) if bias else Tensor(self._backend.zeros((out_features,)))
+            F.zeros((out_features,))
+        ) if bias else Tensor(F.zeros((out_features,)))
 
     def forward(self, x: Tensor) -> Tensor:
         return x @ self.weight.T + self.bias
@@ -37,14 +35,13 @@ class Linear(Module):
 # Activation
 
 class ReLU(Module):
-    def __init__(self, backend: Backend | None = None):
+    def __init__(self):
         super().__init__()
-        self._backend = backend if backend else get_backend()
-    
+
     def forward(self, x: Tensor) -> Tensor:
         return F.max_eltwise(
             x,
-            Tensor(self._backend.zeros(x.shape))
+            Tensor(F.zeros(x.shape))
         )
 
 # Loss

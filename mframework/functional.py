@@ -1,5 +1,7 @@
 from typing import Tuple
 from mframework.autograd.tensor import Tensor
+from mframework.autograd.backend import Backend
+from mframework.state import get_backend
 
 """
 There are two ways to call ops in mframework:
@@ -66,3 +68,22 @@ def transpose(a: Tensor) -> Tensor:
 
 def reshape(a: Tensor, newshape: Tuple[int, ...]) -> Tensor:
     return a.reshape(newshape)
+
+
+# Factory methods
+
+def ones(shape: tuple[int, ...], requires_grad: bool = False, backend: Backend | None = None):
+    if not backend: backend = get_backend()
+    return Tensor(backend.ones(shape), backend=backend, requires_grad=requires_grad)
+
+def zeros(shape: tuple[int, ...], requires_grad: bool = False, backend: Backend | None = None):
+    if not backend: backend = get_backend()
+    return Tensor(backend.zeros(shape), backend=backend, requires_grad=requires_grad)
+
+def randn(shape: tuple[int, ...], requires_grad: bool = False, backend: Backend | None = None):
+    if not backend: backend = get_backend()
+    return Tensor(backend.randn(*shape), backend=backend, requires_grad=requires_grad)
+
+def uniform(lb: float, ub: float, shape: tuple[int, ...], requires_grad: bool = False, backend: Backend | None = None):
+    if not backend: backend = get_backend()
+    return Tensor(backend.uniform(lb, ub, shape), backend=backend, requires_grad=requires_grad)
