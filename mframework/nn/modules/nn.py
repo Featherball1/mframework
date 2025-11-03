@@ -23,10 +23,10 @@ class Linear(Module):
         # Xavier initialization
         limit = sqrt(6 / (in_features + out_features))
         self.weight = Parameter(
-            F.uniform(-limit, limit, (out_features, in_features))
+            F.uniform(-limit, limit, (out_features, in_features))._data
         )
         self.bias = Parameter(
-            F.zeros((out_features,))
+            F.zeros((out_features,))._data
         ) if bias else Tensor(F.zeros((out_features,)))
 
     def forward(self, x: Tensor) -> Tensor:
@@ -41,7 +41,7 @@ class ReLU(Module):
     def forward(self, x: Tensor) -> Tensor:
         return F.max_eltwise(
             x,
-            Tensor(F.zeros(x.shape))
+            F.zeros(x.shape)
         )
 
 # Loss
