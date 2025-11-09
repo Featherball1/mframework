@@ -132,6 +132,7 @@ class Tensor:
             for inp in args:
                 if isinstance(inp, Tensor):
                     g = grads[gi]
+                    if g is None: continue
                     if g is not None:
                         gi += 1
                         self._add_grad(inp, g)

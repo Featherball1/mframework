@@ -20,8 +20,8 @@ def test_optimizer_zero_grad_sets_grad_to_zero():
 
     opt.zero_grad()
 
-    assert (p1._grad == 0).all()
-    assert (p2._grad == 0).all()
+    assert (p1._grad == None)
+    assert (p2._grad == None)
 
 
 def test_optimizer_step_not_implemented():

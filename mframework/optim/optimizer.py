@@ -5,7 +5,9 @@ from mframework.functional import zeros
 
 class Optimizer:
     def __init__(self, params: Iterable[Parameter], **kwargs):
-        self._params: Iterable[Parameter] = params
+        # model.parameters() is a generator that gets used up after first iteration
+        # converting to list ensures that the parameters persist
+        self._params: Iterable[Parameter] = list(params)
         self.state_dict: dict = kwargs
 
     def zero_grad(self):
@@ -14,7 +16,7 @@ class Optimizer:
             This is another reason why the ._grad attribute of a Tensor needs to also be a Tensor.
             We are zeroing it with functional.zeros, but then taking the BackendArray part with ._data!
             """
-            param._grad = zeros(param._grad.shape)._data
+            param._grad = None
 
     """
     For the future - note that some optimization algorithms (L-BFGS etc) require computing the model multiple times.
