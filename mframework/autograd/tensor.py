@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 from typing import Callable, Type, Tuple
 
 import numpy as np
 
+import mframework.functional as F
 from mframework.state import get_backend
 from mframework.autograd.backend import Backend, BackendArray, NumpyBackend
 from mframework.autograd.function import Function, Context
@@ -9,60 +11,107 @@ from mframework.autograd.ops import *
 
 
 """
-Tensors
--------
+Autograd
+--------
 
-Two key methods:
-    - _apply: apply a function to this tensor and create a closure for its local gradient
-    - backward: run backpropagation from this tensor
+Forward pass:
+    x ----> f(x) -----> h(x, y) = z = output
+                            ^
+                            |
+    y ----> g(y) ------------
 
-Local gradients:
-    - Each tensor resulting from an operation has a _local_grad closure that calls the relevant Function.backward
-      and scatters gradients to its parents.
+As the forward pass executes we dynamically build a graph to do backward with
 
-Backpropagation:
-    - The backward method does a topological sort of the computation graph and calls each tensor's _local_grad in reverse order.
+    grad_L <---- grad_H <---- grad_F <---- grad_x (leaf)
+                    ^
+                    |
+                    --------- grad_G <---- grad_y (leaf)
+
+The arrows are edges which contain additional metadata about how the node fits into backprop.
+In particular, they contain the parent node and the slot of the function that it fits into. 
+
+    grad_L <- (edge: parent H, slot 0) - grad_H <- (edge: parent F, slot 1) - x (leaf)
+                                            ^
+                                            |
+                                            ------ (edge: parent G, slot 2) - y (leaf)
+
+When it is time to do backward, we run a dfs on the resulting graph to identify 
+which nodes are participating and what their dependencies are.
+This gives a table like
+
+node     |      receives gradients from     |     in_degree
+----------------------------------------------------------------
+grad_L   |               H                  |             1
+grad_H   |           G       F              |             2
+grad_F   |               x                  |             1
+grad_G   |               y                  |             1
+grad_x   |                                  |             0
+grad_y   |                                  |             0
+
+With the table prepared we can execute backward. Create a ReadyQueue, which keeps
+track of nodes with in-degree zero. Then repeatedly:
+    1) Pop a ready node from the queue (order does not matter - can even be parallelised)
+    2) Compute the local gradient at the ready node
+    3) Send gradients to parents
+    4) Decrement in_degree counters for each parents
+    5) Enqueue parents whose dependency counter hits zero
 """
 
+
+__all__ = [
+    "Tensor", "Parameter", "Buffer",
+    "backward",
+]
+
+
+@dataclass(slots=True)
+class Node:
+    """
+    A Node contains the data needed during the autograd backward pass. 
+    """
+    grad: "Tensor | None"
+    op: Type[Function]  # contains context and backward op
+    ctx: Context
+    parents: list["Edge"]
+    in_degree: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class Edge:
+    """
+    Represents a particular input of a function / an edge in the graph. 
+    We store Tensors here because we can recover the ._node from the Tensor. 
+    """
+    destination: "Tensor"
+    grad_slot: int
+
+
 class Tensor:
+    __slots__ = (
+        "_backend",
+        "_data",
+        "_requires_grad",
+        "_node",
+        "_grad"
+    )
+
     def __init__(
         self,
         data: BackendArray,
         backend: Backend | None = None,
-        requires_grad: bool = False
+        requires_grad: bool = False,
     ) -> None:
+        # Data
         self._backend = backend if backend else get_backend()
         self._data = self._backend.as_array(data)
+
+        # Data for autograd
         self._requires_grad = requires_grad
-        self._children: set[Tensor] | None = None
-        self._op_str: str | None = None
-        self._local_grad: Callable | None = None
-        self._grad: BackendArray = None
+        self._node: Node | None = None  # For function (autograd graph) nodes
+        self._grad: "Tensor | None" = None  # Leaf gradient accumulator
 
-    def backward(self) -> None:
-        if self._grad is None:
-            self._grad = self._backend.ones(self._data.shape)
-
-        topo_sorted: list["Tensor"] = []
-        visited: set["Tensor"] = set()
-
-        def build_topo(t: "Tensor"):
-            if t not in visited:
-                visited.add(t)
-                if t._children is not None:
-                    for child in t._children:
-                        build_topo(child)
-                topo_sorted.append(t)
-
-        build_topo(self)
-    
-        for tensor in reversed(topo_sorted):
-            if tensor._local_grad:
-                tensor._local_grad()
-
-    """
-    Core internal class methods - wiring up ops and tensors. 
-    """
+    def backward(self):
+        self._grad = backward(self)
 
     def _promote_other(self, other: object) -> "Tensor":
         """
@@ -80,69 +129,45 @@ class Tensor:
         
         return other
     
-    def _add_grad(self, t: "Tensor", g: np.ndarray) -> None:
-        """
-        Accumulate gradient `g` into `t._grad`. 
-        Instead of writing `t._grad += g` in `_local_grad`, the `_add_grad` function is a
-        central entry point that allows us more detailed control (adding hooks, handling broadcasting, modifying gradients globally, etc). 
-        If t._grad is None (ie not yet initialised), sets it to all zeros.  
-        TODO:
-            Handle hooks
-        """
-        if t._requires_grad == False: return
-        if t._grad is None: t._grad = np.zeros_like(t._data, dtype=np.float32)
-        # Hooks run here...
-        # Broadcasting runs here...
-        # Gradient accumulation step
-
-        t._grad += g
-
     def _apply(self, f: Type[Function], *args, **kwargs):
         """
-        Unwrap Tensor arguments into raw arrays, call forward(ctx, ...) and wrap output Tensor.
-        The returned Tensor has a _local_grad closure that calls cls.backward and scatters gradients.
-
-        Really, this method should belong to Function, but having it here avoids circular imports.
+        Apply a Function to a tensor.
+        Build the computation graph eagerly. 
         """
+
         ctx = Context(self._backend)
+        # We have to unwrap the args to get the raw data, else we create an infinite recursion
+        # due to the way that functions are currently implemented
         raw_args = [
             a._data if isinstance(a, Tensor) else a for a in args
         ]
-        out_data = f.forward(ctx, *raw_args, **kwargs)
+        out_data: BackendArray = f.forward(ctx, *raw_args, **kwargs)
 
-        requires_grad = any(
-            # TODO: When we introduce the no_grad context manager, we need to amend this part
-            isinstance(a, Tensor) and a._requires_grad for a in args
-        )
+        # determine requires_grad: True if any tensor arg requires grad
+        requires_grad = any(isinstance(a, Tensor) and a._requires_grad for a in args)
         out = Tensor(out_data, requires_grad=requires_grad)
-        out._children = {
-            a
-            for a in args if isinstance(a, Tensor)
-        }
-        out._op_str = f.__name__.upper()
 
-        def _local_grad():
-            if out._grad is None: return
-            grads = f.backward(ctx, out._grad)
-            if grads is None: return
-            # Grads corresponds positionally to *args
-            if not isinstance(grads, tuple):
-                grads = (grads,)
-            gi = 0
-            for inp in args:
-                if isinstance(inp, Tensor):
-                    g = grads[gi]
-                    if g is None: continue
-                    if g is not None:
-                        gi += 1
-                        self._add_grad(inp, g)
-                else:
-                    # For a non-Tensor arg, consume on entry from the grads
-                    gi += 1
-
-        out._local_grad = _local_grad
+        # If requires_grad, add to the graph for backprop
+        if requires_grad:
+            parents: list[Edge] = []
+            for idx, a in enumerate(args):
+                if isinstance(a, Tensor) and a._requires_grad:
+                    if a._requires_grad:
+                        parents.append(Edge(
+                            a,
+                            idx
+                        ))
+            out._node = Node(
+                grad = None,
+                op = f,
+                ctx = ctx,
+                parents = parents,
+                # Placeholder - will be computed just before doing backward as some nodes may not participate
+                in_degree = None
+            )
 
         return out
+
 
     # Arithmetic operations
     def __add__(self, other: object) -> "Tensor":
@@ -195,34 +220,24 @@ class Tensor:
         other = self._promote_other(other)
         return self._apply(MinEltwise, self, other)
 
-    # Properties
     @property
     def T(self) -> "Tensor":
         return self._apply(Transpose, self)
     @property
     def shape(self) -> tuple:
         return self._data.shape
+    @property
+    def grad(self) -> "Tensor | None":
+        # If this tensor is a leaf, return the leaf accumulator.
+        if self._node is None:
+            return self._grad
+        # Non-leaf: gradient accumulated on its node (may be None)
+        return self._node.grad
 
-    """
-    Helper methods.
-    """
-
-    def detach(self) -> "Tensor":
-        return Tensor(self._data.copy(), self._backend, requires_grad=False)
-    def detach_(self) -> "Tensor":
-        self._requires_grad = False
-        self._children = set()
-        self._backward = lambda : None
-        return self
-
-    # Gradient hooks...
-
-    def __repr__(self) -> str:
-        return f"Tensor({self._data}, requires_grad={self._requires_grad})"
 
 class Parameter(Tensor):
     """
-    Taking inspiration from Pytorch, a parameter is a tensor that:
+    A parameter is a tensor that:
         - always has requires_grad = True
         - is recognised by module parameter lists
     """
@@ -230,12 +245,128 @@ class Parameter(Tensor):
     def __init__(self, data: BackendArray, backend: Backend | None = None) -> None:
         super().__init__(data, backend, requires_grad=True)
 
+
 class Buffer(Tensor):
     """
-    Taking inspiration from Pytorch, a buffer is a tensor that:
+    A buffer is a tensor that:
         - always has requires_grad = False
         - is recognised by module buffer lists
     """
 
     def __init__(self, data: BackendArray, backend: Backend | None = None) -> None:
         super().__init__(data, backend, requires_grad=False)
+
+
+class _ReadyQueue:
+    """
+    Queue of nodes with in-dependencies zero. 
+    Responsible for work-scheduling. 
+    """
+    def __init__(self):
+        self._ready_nodes: list[Node] = []
+
+    def push(self, node: Node):
+        self._ready_nodes.append(node)
+    
+    def pop(self) -> Node:
+        return self._ready_nodes.pop()
+
+    def __len__(self) -> int:
+        return len(self._ready_nodes)
+    
+
+def _collect_graph(root: Node) -> list[Node]:
+    """Collect reachable nodes via DFS and return list."""
+    stack = [root]
+    visited = set()
+    nodes = []
+    while stack:
+        n = stack.pop()
+        if id(n) in visited:
+            continue
+        visited.add(id(n))
+        nodes.append(n)
+        for e in n.parents:
+            p = e.destination
+            if p._node is not None:
+                stack.append(p._node)
+    return nodes
+
+
+def _compute_indegrees(root: Node, ready: _ReadyQueue):
+    nodes = _collect_graph(root)
+    # initialize
+    for n in nodes:
+        n.in_degree = 0
+    # each node's in_degree is number of children that will consume its grad
+    # To compute this, iterate parents and increment the parent's in_degree
+    for n in nodes:
+        for e in n.parents:
+            parent = e.destination
+            if parent._node is not None:
+                parent._node.in_degree += 1
+    # nodes with in_degree == 0 are ready
+    for n in nodes:
+        if n.in_degree == 0:
+            ready.push(n)
+
+
+def _backward(root_node: Node) -> Tensor:
+    """Iterative backward engine. root_node.grad must be set to initial gradient Tensor."""
+    queue = _ReadyQueue()
+    _compute_indegrees(root_node, queue)
+
+    while len(queue) > 0:
+        node: Node = queue.pop()
+
+        if node.grad is None:
+            # Nothing to do
+            continue
+
+        grad_buffer: Tensor = node.grad
+
+        # Call op.backward to obtain gradients for parents
+        local_grads: list[BackendArray] = node.op.backward(node.ctx, grad_buffer._data)
+
+        # Iterate through edges and distribute the local grads
+        for edge, g in zip(node.parents, local_grads):
+
+            parent_tensor: Tensor = edge.destination
+            # TODO: in retain_graph mode, requires_grad can be True here?
+            g: Tensor = Tensor(g, parent_tensor._backend, requires_grad=False)
+            
+            if parent_tensor._node is None:
+                # parent is a leaf: accumulate into the parent_tensor._grad accumulator
+                if parent_tensor._grad is None:
+                    # set leaf grad to a Tensor wrapping the raw backend array
+                    parent_tensor._grad = g
+                else:
+                    parent_tensor._grad = parent_tensor._grad + g
+
+            else:
+                # parent has a Node: accumulate into the parent.node.grad buffer
+                parent_node = parent_tensor._node
+                if parent_node.grad is None:
+                    parent_node.grad = g
+                else:
+                    parent_node.grad = parent_node.grad + g
+
+                # decrement in_degree and push if ready
+                parent_node.in_degree -= 1
+                if parent_node.in_degree == 0:
+                    queue.push(parent_node)
+
+        # Prune the graph
+        node.parents = []
+        node.grad = None
+
+    return root_node.grad
+
+
+def backward(t: Tensor):
+    if t._node is None:
+        raise RuntimeError("Tensor not attached to graph. ")
+    # initial gradient: ones shaped like tensor, make it a Tensor that requires grad
+    root_grad = F.ones(t.shape, requires_grad=True, backend=t._backend)
+    t._node.grad = root_grad
+    return _backward(t._node)
