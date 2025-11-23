@@ -1,6 +1,6 @@
 from typing import Any
 
-from mframework.autograd.backend import Backend
+from mframework.autograd.backend import Backend, BackendArray
 
 """
 Functions
@@ -31,20 +31,16 @@ class Context:
         self.saved_for_backward: tuple[Any, ...] = ()
         self.backend = backend
 
-    def save_for_backward(self, *tensors) -> None:
+    def save_for_backward(self, *args) -> None:
         """Save tensors for the backward pass as a tuple, stored in self.saved_for_backward"""
-        self.saved_for_backward = tensors
+        self.saved_for_backward = args
 
 class Function:
     @staticmethod
-    def forward(*args: Any, **kwargs: Any) -> Any: 
+    def forward(*args: Any, **kwargs: Any) -> BackendArray: 
         """ Define a formula for differentiating the function in forward mode. """
         raise NotImplementedError
     @staticmethod
-    def backward(ctx: Context, *grad_outputs: Any) -> Any: 
+    def backward(ctx: Context, *grad_outputs: BackendArray) -> BackendArray: 
         """ Define a formula for differentiating the function in backward mode. """
-        raise NotImplementedError
-    @staticmethod
-    def setup_context(ctx: Context, inputs: tuple[Any, ...], output: Any) -> Any: 
-        """ Define the initialisation of the computation context for the function. """
         raise NotImplementedError
