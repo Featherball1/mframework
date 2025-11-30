@@ -10,7 +10,7 @@ class DummyParam(Parameter):
     """Simple parameter mock for testing."""
     def __init__(self, data, grad=None):
         super().__init__(data)
-        self._grad = grad
+        self._grad = Tensor(grad)
 
 
 def test_optimizer_zero_grad_sets_grad_to_zero():
@@ -20,8 +20,8 @@ def test_optimizer_zero_grad_sets_grad_to_zero():
 
     opt.zero_grad()
 
-    assert (p1._grad == None)
-    assert (p2._grad == None)
+    assert (p1.grad == None)
+    assert (p2.grad == None)
 
 
 def test_optimizer_step_not_implemented():
@@ -54,8 +54,9 @@ def test_sgd_handles_multiple_parameters():
     lr = 0.5
 
     opt = SGD([p1, p2], lr=lr)
-    expected_p1 = p1._data - lr * p1._grad
-    expected_p2 = p2._data - lr * p2._grad
+
+    expected_p1 = p1._data - lr * p1._grad._data
+    expected_p2 = p2._data - lr * p2._grad._data
 
     opt.step()
 

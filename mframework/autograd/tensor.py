@@ -163,7 +163,7 @@ class Tensor:
         """
         if not isinstance(other, Tensor):
             try:
-                return Tensor(other, self._backend, requires_grad=self._requires_grad)
+                return Tensor(self._backend.as_array(other), self._backend, requires_grad=self._requires_grad)
             except Exception:
                 raise ValueError("`other` is not a Tensor and cannot be promoted.")
         
@@ -182,6 +182,9 @@ class Tensor:
     def __mul__(self, other: object) -> "Tensor":
         other = self._promote_other(other)
         return self._apply(Mul, self, other)
+    def __rmul__(self, other: object) -> "Tensor":
+        other = self._promote_other(other)
+        return self._apply(Mul, other, self)
     def __truediv__(self, other: object) -> "Tensor":
         other = self._promote_other(other)
         return self._apply(Div, self, other)
@@ -236,6 +239,12 @@ class Tensor:
             return self._grad
         # Non-leaf: gradient accumulated on its node (may be None)
         return Tensor(self._node.grad_buffer, backend=self._backend, requires_grad=False)
+
+    def __str__(self) -> str:
+        return f"""{self.__class__.__name__}(data={self._data}, requires_grad={self._requires_grad}, backend={self._backend})"""
+
+    def __repr__(self) -> str:
+        return f"""{self.__class__.__name__}(data={self._data}, requires_grad={self._requires_grad}, backend={self._backend})"""
 
 
 class Parameter(Tensor):
@@ -336,16 +345,25 @@ def _backward(root_node: Node) -> BackendArray:
         local_grads: list[BackendArray] = node.op.backward(node.ctx, grad_buffer)
 
         # Iterate through edges and distribute the local grads
-        for edge, g in zip(node.parents, local_grads):
+        for edge in node.parents:
+            # Use the grad_slot recorded on the edge to select the correct gradient
+            try:
+                g = local_grads[edge.grad_slot]
+            except IndexError:
+                raise RuntimeError(
+                    f"Backward for {node.op.__name__} returned {len(local_grads)} grads, "
+                    f"but expected an entry at slot {edge.grad_slot} (parents: {len(node.parents)})."
+                )
+
             parent_tensor: Tensor = edge.destination
 
             if parent_tensor._node is None:
                 # parent is a leaf: accumulate into the parent_tensor._grad accumulator
+                g_wrapped = Tensor(g, backend=parent_tensor._backend, requires_grad=False)
                 if parent_tensor._grad is None:
-                    # set leaf grad to a Tensor wrapping the raw backend array
-                    parent_tensor._grad = g
+                    parent_tensor._grad = g_wrapped
                 else:
-                    parent_tensor._grad = parent_tensor._grad + g
+                    parent_tensor._grad = parent_tensor._grad + g_wrapped
 
             else:
                 # parent has a Node: accumulate into the parent.node.grad_buffer

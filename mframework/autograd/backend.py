@@ -12,7 +12,7 @@ As a rule of thumb - import numpy as np, import cupy as cp, should only appear i
 """
 
 # Later: Union[np.ndarray, cp.ndarray]
-type BackendArray  = Union[np.ndarray, "cp.ndarray"]
+type BackendArray = Union[np.ndarray, "cp.ndarray"]
 
 class BackendType(Enum):
     NUMPY = "numpy"
@@ -83,7 +83,7 @@ class NumpyBackend(Backend):
     def matmul(self, a: np.ndarray, b: np.ndarray) -> np.ndarray: return np.matmul(a, b)
     def true_div(self, a: np.ndarray, b: np.ndarray) -> np.ndarray: return np.true_divide(a, b)
     def neg(self, a: np.ndarray) -> np.ndarray: return np.negative(a)
-    
+
     # Shape operations
     def transpose(self, a: np.ndarray) -> np.ndarray: return np.transpose(a)
     def reshape(self, a: np.ndarray, newshape: tuple[int, ...]) -> np.ndarray: return np.reshape(a, newshape)
@@ -118,6 +118,9 @@ class NumpyBackend(Backend):
 
     @property
     def backend_type(self) -> BackendType: return BackendType.NUMPY
+
+    def __str__(self): return "NumpyBackend"
+    def __repr__(self): return "NumpyBackend"
 
 class CupyBackend(Backend):
     pass
