@@ -2,6 +2,8 @@ import numpy as np
 from typing import Union
 from enum import Enum
 
+from mframework.dtypes import DType
+
 """
 A Backend contains a registry of primitive operations.
 Calls to the backend are delegated to the appropriate Numpy/Cupy method implementations. 
@@ -19,7 +21,7 @@ class BackendType(Enum):
     CUPY = "cupy"
 
 class Backend:
-    def as_array(self, a) -> BackendArray:
+    def as_array(self, a, dtype: DType = DType.FLOAT32) -> BackendArray:
         """
         Attempt to coerce `a` into a backend-suitable array type. 
         """
@@ -70,9 +72,15 @@ class Backend:
     def backend_type(self) -> BackendType: raise NotImplementedError
 
 class NumpyBackend(Backend):
-    def as_array(self, a) -> np.ndarray:
+    dtype_mapping = {
+        DType.FLOAT32: np.float32,
+        DType.INT64: np.int64,
+    }
+
+    def as_array(self, a, dtype: DType = DType.FLOAT32) -> np.ndarray:
+        np_dtype = self.dtype_mapping[dtype]
         try:
-            return np.array(a, dtype=np.float32) if not isinstance(a, np.ndarray) else a
+            return np.array(a, dtype=np_dtype) if not isinstance(a, np.ndarray) else a
         except Exception:
             raise ValueError("Could not coerce `a` into a numpy array.")
 

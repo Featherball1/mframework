@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from collections import deque
 from typing import Type, Tuple
 
+from mframework.dtypes import DType
 import mframework.functional as F
 from mframework.state import get_backend
 from mframework.autograd.backend import Backend, BackendArray
@@ -27,7 +28,7 @@ As the forward pass executes we dynamically build a graph to do backward with
                     --------- grad_G <---- grad_y (leaf)
 
 The arrows are edges which contain additional metadata about how the node fits into backprop.
-In particular, they contain the parent node and the slot of the function that it fits into. 
+In particular, they contain the parent tensor and the slot of the function that it fits into. 
 
     grad_L <- (edge: parent H, slot 0) - grad_H <- (edge: parent F, slot 1) - x (leaf)
                                             ^
@@ -47,7 +48,10 @@ grad_G   |               y                  |             1
 grad_x   |                                  |             0
 grad_y   |                                  |             0
 
-With the table prepared we can execute backward. Create a ReadyQueue, which keeps
+During backward, the root node receives an implicit upstream gradient (typically ones), 
+so it is treated as if it had a single incoming gradient source.
+
+With the table prepared and root node ready we can execute backward. Create a ReadyQueue, which keeps
 track of nodes with in-degree zero. Then repeatedly:
     1) Pop a ready node from the queue (order does not matter - can even be parallelised)
     2) Compute the local gradient at the ready node
@@ -93,6 +97,7 @@ class Edge:
 class Tensor:
     __slots__ = (
         "_backend",
+        "_dtype",
         "_data",
         "_requires_grad",
         "_node",
@@ -104,10 +109,12 @@ class Tensor:
         data: BackendArray,
         backend: Backend | None = None,
         requires_grad: bool = False,
+        dtype: DType = DType.FLOAT32,
     ) -> None:
         # Data
         self._backend = backend if backend else get_backend()
-        self._data = self._backend.as_array(data)
+        self._dtype = dtype
+        self._data = self._backend.as_array(data, dtype=dtype)
 
         # Data for autograd
         self._requires_grad = requires_grad
@@ -118,43 +125,7 @@ class Tensor:
         self._grad = backward(self)
     
     def _apply(self, f: Type[Function], *args, **kwargs):
-        """
-        Apply a Function to a tensor.
-        Build the computation graph eagerly. 
-        """
-
-        ctx = Context(self._backend)
-        # We have to unwrap the args to get the raw data, else we create an infinite recursion
-        # due to the way that functions are currently implemented
-        raw_args = [
-            a._data if isinstance(a, Tensor) else a for a in args
-        ]
-        out_data: BackendArray = f.forward(ctx, *raw_args, **kwargs)
-
-        # determine requires_grad: True if any tensor arg requires grad
-        requires_grad = any(isinstance(a, Tensor) and a._requires_grad for a in args)
-        out = Tensor(out_data, requires_grad=requires_grad)
-
-        # If requires_grad, add to the graph for backprop
-        if requires_grad:
-            parents: list[Edge] = []
-            for idx, a in enumerate(args):
-                if isinstance(a, Tensor) and a._requires_grad:
-                    if a._requires_grad:
-                        parents.append(Edge(
-                            a,
-                            idx
-                        ))
-            out._node = Node(
-                grad_buffer = None,
-                op = f,
-                ctx = ctx,
-                parents = parents,
-                # Placeholder - will be computed just before doing backward as some nodes may not participate
-                in_degree = None
-            )
-
-        return out
+        return _apply(self, f, *args, **kwargs)
 
     def _promote_other(self, other: object) -> "Tensor":
         """
@@ -239,6 +210,12 @@ class Tensor:
             return self._grad
         # Non-leaf: gradient accumulated on its node (may be None)
         return Tensor(self._node.grad_buffer, backend=self._backend, requires_grad=False)
+    @property
+    def data(self) -> BackendArray:
+        return self._data
+    @property
+    def ndim(self) -> int:
+        return self._data.ndim
 
     def __str__(self) -> str:
         return f"""{self.__class__.__name__}(data={self._data}, requires_grad={self._requires_grad}, backend={self._backend})"""
@@ -273,6 +250,52 @@ class Buffer(Tensor):
 Autograd engine logic.
 """
 
+"""
+Forward pass. 
+"""
+
+def _apply(t: Tensor, f: Type[Function], *args, **kwargs):
+    """
+    Apply a Function to a tensor.
+    Build the computation graph eagerly. 
+    """
+
+    ctx = Context(t._backend)
+    # We have to unwrap the args to get the raw data, else we create an infinite recursion
+    # due to the way that functions are currently implemented
+    raw_args = [
+        a._data if isinstance(a, Tensor) else a for a in args
+    ]
+    out_data: BackendArray = f.forward(ctx, *raw_args, **kwargs)
+
+    # determine requires_grad: True if any tensor arg requires grad
+    requires_grad = any(isinstance(a, Tensor) and a._requires_grad for a in args)
+    out = Tensor(out_data, requires_grad=requires_grad)
+
+    # If requires_grad, add to the graph for backprop
+    if requires_grad:
+        parents: list[Edge] = []
+        for idx, a in enumerate(args):
+            if isinstance(a, Tensor) and a._requires_grad:
+                if a._requires_grad:
+                    parents.append(Edge(
+                        a,
+                        idx
+                    ))
+        out._node = Node(
+            grad_buffer = None,
+            op = f,
+            ctx = ctx,
+            parents = parents,
+            # Placeholder - will be computed just before doing backward as some nodes may not participate
+            in_degree = None
+        )
+
+    return out
+
+"""
+Backward pass. 
+"""
 
 class _ReadyQueue:
     """
@@ -382,17 +405,13 @@ def _backward(root_node: Node) -> BackendArray:
         node.parents = []
         node.grad_buffer = None
 
-    return root_node.grad_buffer
-
 
 def backward(t: Tensor) -> Tensor:
     if t._node is None:
-        raise RuntimeError("Tensor not attached to graph. ")
-    # Initial gradient: ones shaped like tensor, make it a Tensor that requires grad
-    root_grad = F.ones(t.shape, requires_grad=True, backend=t._backend)._data
+        raise RuntimeError("Tensor not attached to graph.")
+    # Initial gradient
+    root_grad = F.ones(t.shape, requires_grad=True, backend=t._backend).data
     t._node.grad_buffer = root_grad
-    return Tensor(
-        _backward(t._node),
-        backend=t._backend,
-        requires_grad=False
-    )
+    _backward(t._node)
+    # return a Tensor wrapping the original root grad
+    return Tensor(root_grad, backend=t._backend, requires_grad=False)
