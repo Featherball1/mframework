@@ -24,6 +24,9 @@ Inputs x --------> call tensor._apply -------> call op.forward ------>(later) --
                          |                      |                                          |
                          |                      |                                          |
                     create a ctx   saves intermediate calcs in ctx            retrieve context for usage in autograd
+
+Note - functions don't know about tensors. They are just the next layer after a BackendArray responsible for bundling
+together contexts, and forward and backward logic. 
 """
 
 class Context:
@@ -32,7 +35,7 @@ class Context:
         self.backend = backend
 
     def save_for_backward(self, *args) -> None:
-        """Save tensors for the backward pass as a tuple, stored in self.saved_for_backward"""
+        """Save backend arrays for the backward pass as a tuple, stored in self.saved_for_backward"""
         self.saved_for_backward = args
 
 class Function:
@@ -41,6 +44,6 @@ class Function:
         """ Define a formula for differentiating the function in forward mode. """
         raise NotImplementedError
     @staticmethod
-    def backward(ctx: Context, *grad_outputs: BackendArray) -> BackendArray: 
+    def backward(ctx: Context, *grad_outputs: BackendArray) -> tuple[BackendArray, ...]: 
         """ Define a formula for differentiating the function in backward mode. """
         raise NotImplementedError

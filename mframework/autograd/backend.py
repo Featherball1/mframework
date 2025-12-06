@@ -43,6 +43,15 @@ class Backend:
     def shape(self, a: BackendArray) -> tuple[int, ...] : raise NotImplementedError
     def expand_dims(self, a: BackendArray, axis: int | tuple[int, ...]) -> BackendArray: raise NotImplementedError
     def broadcast_to(self, a: BackendArray, shape: int | tuple[int, ...]) -> BackendArray: raise NotImplementedError
+    def take_along_axis(self, a: BackendArray, idx: BackendArray, axis: int) -> BackendArray: raise NotImplementedError
+    def add_at(self, a: BackendArray, indices: tuple[int, ...], b: BackendArray) -> None: raise NotImplementedError
+    def scatter_add(self, a: BackendArray, indices: tuple[int, ...], src: BackendArray, axis: int) -> None:
+        """
+        In-place: a.scatter_add(axis, idx, src)
+        For each position p:
+            a[..., idx[p], ...] += src[p]
+        """
+        raise NotImplementedError
 
     # Reduction operations
     def sum(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray : raise NotImplementedError
@@ -61,6 +70,8 @@ class Backend:
     def randn(self, *shape: int) -> BackendArray: raise NotImplementedError
     def where(self, condition: BackendArray, x: BackendArray, y: BackendArray) -> BackendArray : raise NotImplementedError
     def uniform(self, lb: float, ub: float, shape: tuple[int, ...]) -> BackendArray: raise NotImplementedError
+    def arange(self, n: int, dtype=DType.INT64) -> BackendArray: raise NotImplementedError
+    def indices(self, shape: tuple[int, ...], dtype=DType.INT64) -> BackendArray: raise NotImplementedError
 
     # Elementwise mathematical functions
     def exp(self, a: BackendArray) -> BackendArray : raise NotImplementedError
@@ -100,6 +111,11 @@ class NumpyBackend(Backend):
     def shape(self, a: np.ndarray) -> tuple: return a.shape
     def expand_dims(self, a: np.ndarray, axis: int | tuple[int, ...]) -> np.ndarray: return np.expand_dims(a, axis)
     def broadcast_to(self, a: np.ndarray, shape: int | tuple[int, ...]) -> np.ndarray: return np.broadcast_to(a, shape)
+    def take_along_axis(self, a: np.ndarray, idx: np.ndarray, axis: int) -> np.ndarray: return np.take_along_axis(a, idx, axis)
+    def add_at(self, a: np.ndarray, indices: tuple[int, ...], b: np.ndarray) -> None: np.add.at(a, indices, b)
+    def scatter_add(self, a: np.ndarray, indices: tuple[int, ...], b: np.ndarray):
+        np.add.at(a, indices, b)
+        return a
 
     # Reduction operations
     def sum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.sum(a, axis=axis, keepdims=keepdims)
@@ -111,10 +127,12 @@ class NumpyBackend(Backend):
     def min_eltwise(self, a: np.ndarray, b: np.ndarray) -> np.ndarray: return np.minimum(a, b)
     def argmax(self, a: np.ndarray, axis: int | None = None, keepdims: bool = False) -> np.ndarray: return np.argmax(a, axis=axis, keepdims=keepdims)
     def argmin(self, a: np.ndarray, axis: int | None = None, keepdims: bool = False) -> np.ndarray: return np.argmin(a, axis=axis, keepdims=keepdims)
+    def arange(self, n: int, dtype=DType.INT64) -> np.ndarray: return np.arange(n, dtype=self.dtype_mapping[dtype])
+    def indices(self, shape: tuple[int, ...], dtype=DType.INT64) -> np.ndarray: return np.indices(shape, dtype=self.dtype_mapping[dtype])
 
     # BackendArray creation
-    def ones(self, shape: tuple[int, ...]) -> np.ndarray: return np.ones(shape, dtype=np.float32)
-    def zeros(self, shape: tuple[int, ...]) -> np.ndarray: return np.zeros(shape, dtype=np.float32)
+    def ones(self, shape: tuple[int, ...], dtype=DType.FLOAT32) -> np.ndarray: return np.ones(shape, dtype=self.dtype_mapping[dtype])
+    def zeros(self, shape: tuple[int, ...], dtype=DType.FLOAT32) -> np.ndarray: return np.zeros(shape, dtype=self.dtype_mapping[dtype])
     def randn(self, *shape: int) -> np.ndarray: return np.random.randn(*shape).astype(np.float32)
     def where(self, condition: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray: return np.where(condition, x, y)
     def uniform(self, lb: float, ub: float, shape: tuple[int, ...]) -> np.ndarray: return np.random.uniform(lb, ub, shape)

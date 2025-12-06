@@ -85,4 +85,4 @@ class Neg(Function):
 
     @staticmethod
     def backward(ctx: Context, grad_out):
-        return -grad_out
+        return (-grad_out,)

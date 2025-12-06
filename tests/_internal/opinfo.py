@@ -1,6 +1,7 @@
 from typing import Callable, Any
 from dataclasses import dataclass
 
+from mframework.dtypes import DType
 from mframework.autograd.backend import BackendType, Backend
 from mframework import functional as F
 from mframework.autograd.tensor import Tensor
@@ -295,4 +296,113 @@ op_db = [
         broadcasts=False,
         backends=[BackendType.NUMPY],
     ),
+    OpInfo(
+        name="gather",
+        op=F.gather,
+        sample_inputs=lambda backend: [
+            # Example 1: simple 2D gather along axis 1
+            (
+                Tensor(
+                    backend.as_array([[1.0, 2.0, 3.0],
+                                    [4.0, 5.0, 6.0]]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([[0], [2]], dtype=DType.INT64),
+                    backend=backend,
+                    requires_grad=False
+                ),
+                1  # axis
+            ),
+
+            # Example 2: gather along axis 0 (different shape)
+            (
+                Tensor(
+                    backend.as_array([[10.0, 20.0],
+                                    [30.0, 40.0],
+                                    [50.0, 60.0]]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([[2, 0]], dtype=DType.INT64),
+                    backend=backend,
+                    requires_grad=False
+                ),
+                0  # axis
+            ),
+
+            # Example 3: 1D tensor
+            (
+                Tensor(
+                    backend.as_array([10.0, 20.0, 30.0]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([2, 0], dtype=DType.INT64),
+                    backend=backend,
+                    requires_grad=False
+                ),
+                0
+            ),
+
+            # Example 4: 3D tensor gather along axis 2
+            (
+                Tensor(
+                    backend.as_array([
+                        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+                        [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([
+                        [[2, 0, 1], [1, 2, 0]],
+                        [[0, 2, 1], [2, 0, 1]]
+                    ], dtype=DType.INT64),
+                    backend=backend,
+                    requires_grad=False
+                ),
+                2
+            ),
+
+            # Example 5: negative indices
+            (
+                Tensor(
+                    backend.as_array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([[-1, 0], [1, -2]], dtype=DType.INT64),
+                    backend=backend,
+                    requires_grad=False
+                ),
+                1
+            ),
+
+            # Example 6: repeated indices
+            (
+                Tensor(
+                    backend.as_array([[1.0, 2.0], [3.0, 4.0]]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([[0, 0], [1, 1]], dtype=DType.INT64),
+                    backend=backend,
+                    requires_grad=False
+                ),
+                1
+            ),
+        ],
+        supports_autograd=True,
+        broadcasts=False,
+        backends=[BackendType.NUMPY],
+    )
+
+
 ]

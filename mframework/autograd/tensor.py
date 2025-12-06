@@ -182,6 +182,8 @@ class Tensor:
         return self._apply(Reshape, self, newshape)
     def flatten(self) -> "Tensor":
         return self._apply(Flatten, self)
+    def gather(self, indices: "Tensor", axis: int = -1) -> "Tensor":
+        return self._apply(Gather, self, indices, axis=axis)
 
     # Basic mathematical functions
     def exp(self) -> "Tensor":
