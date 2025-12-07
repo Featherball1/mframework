@@ -218,6 +218,10 @@ class Tensor:
     @property
     def ndim(self) -> int:
         return self._data.ndim
+    @property
+    def item(self):
+        return float(self.data)
+
 
     def __str__(self) -> str:
         return f"""{self.__class__.__name__}(data={self._data}, requires_grad={self._requires_grad}, backend={self._backend})"""

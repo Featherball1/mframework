@@ -140,3 +140,97 @@ def test_flatten_changes_shape_correctly():
     x = F.ones((2, 3, 4))
     y = flat(x)
     assert y.shape == (24,)
+
+def test_cross_entropy_loss():
+    """Test CrossEntropyLoss with various scenarios"""
+    from mframework.nn.modules.nn import CrossEntropyLoss
+    
+    ce_loss = CrossEntropyLoss()
+    
+    # Test 1: Perfect predictions (loss should be near 0)
+    logits = Tensor(np.array([[10.0, 0.0, 0.0],
+                               [0.0, 10.0, 0.0],
+                               [0.0, 0.0, 10.0]]))
+    targets = np.array([0, 1, 2])
+    loss = ce_loss(logits, targets)
+    assert loss.shape == (), "Loss should be scalar"
+    assert loss._data < 0.1, f"Perfect predictions should have low loss, got {loss._data}"
+    
+    # Test 2: Worst predictions (loss should be high)
+    logits = Tensor(np.array([[0.0, 10.0, 10.0],
+                               [10.0, 0.0, 10.0],
+                               [10.0, 10.0, 0.0]]))
+    targets = np.array([0, 1, 2])
+    loss = ce_loss(logits, targets)
+    assert loss._data > 5.0, f"Wrong predictions should have high loss, got {loss._data}"
+    
+    # Test 3: Known analytical result
+    # For uniform logits [0,0,0] with 3 classes, loss should be -log(1/3) ≈ 1.0986
+    logits = Tensor(np.array([[0.0, 0.0, 0.0],
+                               [0.0, 0.0, 0.0]]))
+    targets = np.array([0, 1])
+    loss = ce_loss(logits, targets)
+    expected_loss = -np.log(1.0 / 3.0)
+    assert np.isclose(loss._data, expected_loss, atol=1e-4), \
+        f"Uniform logits loss should be {expected_loss:.4f}, got {loss._data:.4f}"
+    
+    # Test 4: Numerical stability with large logits
+    logits = Tensor(np.array([[1000.0, 0.0, 0.0],
+                               [0.0, 1000.0, 0.0]]))
+    targets = np.array([0, 1])
+    loss = ce_loss(logits, targets)
+    assert not np.isnan(loss._data), "Loss should not be NaN with large logits"
+    assert not np.isinf(loss._data), "Loss should not be inf with large logits"
+    assert loss._data < 0.1, f"Large correct logits should give low loss, got {loss._data}"
+    
+    # Test 5: Single sample
+    logits = Tensor(np.array([[2.0, 1.0, 0.1]]))
+    targets = np.array([0])
+    loss = ce_loss(logits, targets)
+    assert loss.shape == (), "Loss should be scalar even for single sample"
+    assert loss._data > 0, "Loss should be positive"
+    
+    # Test 6: Gradient check - loss should be differentiable
+    logits = Tensor(np.array([[1.0, 2.0, 3.0]], dtype=np.float32), requires_grad=True)
+    targets = np.array([2])
+    loss = ce_loss(logits, targets)
+    loss.backward()
+    assert logits.grad is not None, "Gradients should flow back through loss"
+    assert logits.grad.shape == logits.shape, "Gradient shape should match input shape"
+
+
+def test_cross_entropy_loss_batch_handling():
+    """Test that CrossEntropyLoss handles different batch sizes correctly"""
+    from mframework.nn.modules.nn import CrossEntropyLoss
+    
+    ce_loss = CrossEntropyLoss()
+    
+    # Small batch
+    logits_small = Tensor(np.random.randn(2, 5).astype(np.float32))
+    targets_small = np.array([0, 3])
+    loss_small = ce_loss(logits_small, targets_small)
+    assert not np.isnan(loss_small._data)
+    
+    # Large batch
+    logits_large = Tensor(np.random.randn(128, 10).astype(np.float32))
+    targets_large = np.random.randint(0, 10, size=128)
+    loss_large = ce_loss(logits_large, targets_large)
+    assert not np.isnan(loss_large._data)
+    assert loss_large.shape == ()
+
+def test_cross_entropy_loss_with_tensor_targets():
+    """Test CrossEntropyLoss when targets are Tensors instead of numpy arrays"""
+    from mframework.nn.modules.nn import CrossEntropyLoss
+    from mframework.dtypes import DType
+    
+    ce_loss = CrossEntropyLoss()
+    
+    logits = Tensor(np.array([[1.0, 2.0, 3.0],
+                               [3.0, 2.0, 1.0]]))
+    # Test with Tensor targets
+    targets = Tensor(np.array([2, 0]), dtype=DType.INT64)
+    loss = ce_loss(logits, targets)
+    
+    assert loss.shape == (), "Loss should be scalar"
+    assert not np.isnan(loss._data), "Loss should not be NaN"
+    assert loss._data > 0, "Loss should be positive"
