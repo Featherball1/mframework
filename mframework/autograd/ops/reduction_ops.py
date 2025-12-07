@@ -8,13 +8,39 @@ Reduction operations (sum, mean, etc.)
 class Sum(Function):
     @staticmethod
     def forward(ctx: Context, a, axis=None, keepdims=False):
-        ctx.save_for_backward(ctx.backend.shape(a))
+        ctx.save_for_backward(ctx.backend.shape(a), axis, keepdims)
         return ctx.backend.sum(a, axis=axis, keepdims=keepdims)
 
     @staticmethod
     def backward(ctx: Context, grad_out):
-        (a_shape,) = ctx.saved_for_backward
-        return (unbroadcast(grad_out, a_shape, ctx.backend),)
+        a_shape, axis, keepdims = ctx.saved_for_backward
+        backend = ctx.backend
+
+        # If axis=None we have a full reduction and the result is a scalar
+        if axis is None:
+            # Re-expand to full shape note broadcast_to will raise if grad_out isn't at least 1D
+            g = grad_out
+            g = backend.reshape(g, (1,) * len(a_shape))
+            g = backend.broadcast_to(g, a_shape)
+            return (g,)
+
+        if isinstance(axis, int):
+            axes = (axis,)
+        else:
+            axes = axis
+
+        g = grad_out
+
+        # If reduction did not keep dims, we must reinsert dims of size 1
+        if not keepdims:
+            for ax in sorted(axes):
+                g = backend.expand_dims(g, ax)
+
+        # Now broadcast to input shape
+        g = backend.broadcast_to(g, a_shape)
+
+        return (g,)
+
 
 class Mean(Function):
     @staticmethod
