@@ -32,7 +32,10 @@ class Sub(Function):
     @staticmethod
     def backward(ctx: Context, grad_out):
         a_shape, b_shape = ctx.saved_for_backward
-        return (unbroadcast(grad_out, a_shape, ctx.backend), unbroadcast(grad_out, b_shape, ctx.backend))
+        return (
+            unbroadcast(grad_out, a_shape, ctx.backend),
+            unbroadcast(ctx.backend.neg(grad_out), b_shape, ctx.backend)
+        )
 
 class Mul(Function):
     @staticmethod
