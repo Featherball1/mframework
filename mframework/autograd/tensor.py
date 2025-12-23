@@ -198,6 +198,22 @@ class Tensor:
     def min_eltwise(self, other: object) -> "Tensor":
         other = self._promote_other(other)
         return self._apply(MinEltwise, self, other)
+    
+    def detach(self) -> "Tensor":
+        """
+        Returns a new Tensor that shares the same data but is detached from the computation graph.
+        The returned tensor will have requires_grad=False and no _node.
+        """
+        return Tensor(
+            data=self._data,
+            backend=self._backend,
+            requires_grad=False,
+            dtype=self._dtype
+        )
+    
+    def detach_(self):
+        self._node = None
+        self._grad = None
 
     @property
     def T(self) -> "Tensor":
@@ -416,7 +432,7 @@ def backward(t: Tensor) -> Tensor:
     if t._node is None:
         raise RuntimeError("Tensor not attached to graph.")
     # Initial gradient
-    root_grad = F.ones(t.shape, requires_grad=True, backend=t._backend).data
+    root_grad = F.ones(t.shape, requires_grad=False, backend=t._backend).data
     t._node.grad_buffer = root_grad
     _backward(t._node)
     # return a Tensor wrapping the original root grad

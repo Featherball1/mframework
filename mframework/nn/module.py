@@ -1,4 +1,5 @@
 from typing import Any, Callable, Self, Iterator
+from abc import ABC, abstractmethod
 
 from mframework.autograd.tensor import Tensor, Parameter, Buffer
 
@@ -18,7 +19,7 @@ The idea behind a module is to abstract away many individual tensors/submodules 
 that allows for easy end-user manipulation.
 """
 
-class Module:
+class Module(ABC):
     def __init__(self) -> None:
         self._training = True
         self._submodules: dict[str, Module] = {}
@@ -71,6 +72,18 @@ class Module:
             self.register_buffer(name, value)
         super().__setattr__(name, value)
 
+    def __getattr__(self, name: str) -> Any:
+        if '_parameters' in self.__dict__:
+            if name in self._parameters:
+                return self._parameters[name]
+        if '_buffers' in self.__dict__:
+            if name in self._buffers:
+                return self._buffers[name]
+        if '_submodules' in self.__dict__:
+            if name in self._submodules:
+                return self._submodules[name]
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
     """
     Module apply behaviour. 
 
@@ -113,6 +126,7 @@ class Module:
     Forward functionality must be implemented by subclasses.
     """
 
+    @abstractmethod
     def forward(self, *args, **kwargs) -> Tensor:
         raise NotImplementedError
 

@@ -67,24 +67,16 @@ class CrossEntropyLoss(Module):
         super().__init__()
 
     def forward(self, logits: "Tensor", target: "Tensor") -> "Tensor":
-        """
-        logits: Tensor (batch, num_classes)
-        target: either a numpy array of ints shape (batch,) or a Tensor with int labels
-        """
-        # Log-sum-exp trick for numerical stability
-        max_logits = logits.max(axis=1, keepdims=True) 
+        max_logits = logits.max(axis=1, keepdims=True).detach()
         logits_shifted = logits - max_logits 
         
         exp_logits = logits_shifted.exp()
         sum_exp = exp_logits.sum(axis=1, keepdims=True)
         log_sum = sum_exp.log()
-        
         log_probs = logits_shifted - log_sum
 
-        target_idx = target.reshape((-1,))
-        indices = target_idx.reshape((-1, 1))
+        indices = target.reshape((-1, 1))
         chosen = log_probs.gather(indices, axis=1)
         
-        neg_chosen = chosen.__neg__()
-        loss = neg_chosen.mean()
+        loss = (-chosen).mean()
         return loss

@@ -61,6 +61,12 @@ def log(a: Tensor) -> Tensor:
 def relu(a: Tensor) -> Tensor:
     return a.relu()
 
+def log_softmax(a: Tensor, axis: int = -1) -> Tensor:
+    exp_a = a.exp()
+    sum_exp = exp_a.sum(axis=axis, keepdims=True)
+    log_sum_exp = sum_exp.log()
+    return a - log_sum_exp
+
 
 # Shape ops
 def transpose(a: Tensor) -> Tensor:
@@ -69,6 +75,8 @@ def transpose(a: Tensor) -> Tensor:
 def reshape(a: Tensor, newshape: Tuple[int, ...]) -> Tensor:
     return a.reshape(newshape)
 
+def gather(a: Tensor, indices: Tensor, axis: int = -1) -> Tensor:
+    return a.gather(indices, axis=axis)
 
 # Factory methods
 
