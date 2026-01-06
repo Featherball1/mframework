@@ -36,7 +36,7 @@ class Backend:
     def neg(self, a: BackendArray) -> BackendArray : raise NotImplementedError
     
     # Shape operations
-    def transpose(self, a: BackendArray) -> BackendArray : raise NotImplementedError
+    def transpose(self, a: BackendArray, axes: tuple[int, ...] | None = None) -> BackendArray : raise NotImplementedError
     def reshape(self, a: BackendArray, newshape: tuple[int, ...]) -> BackendArray : raise NotImplementedError
     def flatten(self, a: BackendArray) -> BackendArray : raise NotImplementedError
     def ndim(self, a: BackendArray) -> int : raise NotImplementedError
@@ -52,6 +52,7 @@ class Backend:
             a[..., idx[p], ...] += src[p]
         """
         raise NotImplementedError
+    def argsort(self, a: BackendArray) -> BackendArray: raise NotImplementedError
 
     # Reduction operations
     def sum(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray : raise NotImplementedError
@@ -104,7 +105,7 @@ class NumpyBackend(Backend):
     def neg(self, a: np.ndarray) -> np.ndarray: return np.negative(a)
 
     # Shape operations
-    def transpose(self, a: np.ndarray) -> np.ndarray: return np.transpose(a)
+    def transpose(self, a: np.ndarray, axes: tuple[int, ...] | None = None) -> np.ndarray: return np.transpose(a, axes=axes)
     def reshape(self, a: np.ndarray, newshape: tuple[int, ...]) -> np.ndarray: return np.reshape(a, newshape)
     def flatten(self, a: np.ndarray) -> np.ndarray: return a.flatten()
     def ndim(self, a: np.ndarray) -> int: return a.ndim
@@ -116,6 +117,7 @@ class NumpyBackend(Backend):
     def scatter_add(self, a: np.ndarray, indices: tuple[int, ...], b: np.ndarray):
         np.add.at(a, indices, b)
         return a
+    def argsort(self, a: np.ndarray, axis: int | None = None) -> np.ndarray: return np.argsort(a, axis=axis)
 
     # Reduction operations
     def sum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.sum(a, axis=axis, keepdims=keepdims)

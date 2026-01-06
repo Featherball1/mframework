@@ -9,14 +9,19 @@ Shape operations (transpose, reshape, etc.)
 
 class Transpose(Function):
     @staticmethod
-    def forward(ctx: Context, a):
-        ctx.save_for_backward(a.shape)
-        return ctx.backend.transpose(a)
+    def forward(ctx: Context, a, axes: tuple[int, ...] | None = None):
+        ctx.save_for_backward(axes)
+        return ctx.backend.transpose(a, axes=axes)
 
     @staticmethod
     def backward(ctx: Context, grad_out):
-        (a_shape,) = ctx.saved_for_backward
-        return ctx.backend.transpose(grad_out)
+        (axes,) = ctx.saved_for_backward
+        if axes is None:
+            # reverse axes
+            axes_rev = tuple(range(grad_out.ndim - 1, -1, -1))
+            return (ctx.backend.transpose(grad_out, axes_rev),)
+        inv = ctx.backend.argsort(axes)
+        return (ctx.backend.transpose(grad_out, inv),)
 
 class Reshape(Function):
     @staticmethod
