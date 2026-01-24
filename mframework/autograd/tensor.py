@@ -288,7 +288,11 @@ def _apply(t: Tensor, f: Type[Function], *args, **kwargs):
     raw_args = [
         a._data if isinstance(a, Tensor) else a for a in args
     ]
-    out_data: BackendArray = f.forward(ctx, *raw_args, **kwargs)
+    raw_kwargs = {
+        k: (v._data if isinstance(v, Tensor) else v) for k, v in kwargs.items()
+    }
+
+    out_data: BackendArray = f.forward(ctx, *raw_args, **raw_kwargs)
 
     # determine requires_grad: True if any tensor arg requires grad
     requires_grad = any(isinstance(a, Tensor) and a._requires_grad for a in args)
