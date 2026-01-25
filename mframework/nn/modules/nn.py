@@ -8,7 +8,6 @@ from mframework.autograd.tensor import Tensor, Parameter
 import mframework.functional as F
 
 # Layers
-
 class Linear(Module):
     def __init__(
         self,
@@ -33,8 +32,45 @@ class Linear(Module):
     def forward(self, x: Tensor) -> Tensor:
         return x @ self.weight.T + self.bias
 
-# Activation
 
+class Conv2D(Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        bias: bool = True,
+    ):
+        super().__init__()
+
+        self._in_channels: int = in_channels
+        self._out_channels: int = out_channels
+        self._kernel_size: int = kernel_size
+        self._stride: int = stride
+        self._padding: int = padding
+
+        # Xavier initialization
+        limit = sqrt(6 / (in_channels * kernel_size * kernel_size + out_channels * kernel_size * kernel_size))
+        self.weight = Parameter(
+            F.uniform(-limit, limit, (out_channels, in_channels, kernel_size, kernel_size))._data
+        )
+        self.bias = Parameter(
+            F.zeros((out_channels,))._data
+        ) if bias else Tensor(F.zeros((out_channels,)))
+
+    def forward(self, x: Tensor) -> Tensor:
+        return F.conv_2d(
+            x,
+            self.weight,
+            b=self.bias if isinstance(self.bias, Parameter) else None,
+            stride=self._stride,
+            padding=self._padding
+        )
+
+
+# Activation
 class ReLU(Module):
     def __init__(self):
         super().__init__()
@@ -45,8 +81,8 @@ class ReLU(Module):
             F.zeros(x.shape)
         )
 
-# Loss
 
+# Loss
 class MSELoss(Module):
     def __init__(self):
         super().__init__()
@@ -55,12 +91,14 @@ class MSELoss(Module):
         # At the time I implemented this, I didn't have elementwise power implemented into ops
         return F.mean((x - target) * (x - target))
 
+
 class Softmax(Module):
     def __init__(self):
         super().__init__()
     
     def forward(self, x: Tensor) -> Tensor:
         return x.exp() / x.exp().sum(axis=-1, keepdims=True)
+
 
 class CrossEntropyLoss(Module):
     def __init__(self):
