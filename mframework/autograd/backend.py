@@ -53,6 +53,7 @@ class Backend:
         """
         raise NotImplementedError
     def argsort(self, a: BackendArray) -> BackendArray: raise NotImplementedError
+    def stack(self, arrays: list[BackendArray], axis: int = 0) -> BackendArray : raise NotImplementedError
 
     # Reduction operations
     def sum(self, a: BackendArray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> BackendArray : raise NotImplementedError
@@ -73,6 +74,7 @@ class Backend:
     def uniform(self, lb: float, ub: float, shape: tuple[int, ...]) -> BackendArray: raise NotImplementedError
     def arange(self, n: int, dtype=DType.INT64) -> BackendArray: raise NotImplementedError
     def indices(self, shape: tuple[int, ...], dtype=DType.INT64) -> BackendArray: raise NotImplementedError
+    def pad(self, a: BackendArray, pad_width: tuple[tuple[int, int], ...], mode: str = 'constant', constant_values: float = 0.0) -> BackendArray: raise NotImplementedError
 
     # Elementwise mathematical functions
     def exp(self, a: BackendArray) -> BackendArray : raise NotImplementedError
@@ -118,6 +120,7 @@ class NumpyBackend(Backend):
         np.add.at(a, indices, b)
         return a
     def argsort(self, a: np.ndarray, axis: int | None = None) -> np.ndarray: return np.argsort(a, axis=axis)
+    def stack(self, arrays: list[np.ndarray], axis: int = 0) -> np.ndarray: return np.stack(arrays, axis=axis)
 
     # Reduction operations
     def sum(self, a: np.ndarray, axis: int | tuple[int, ...] | None = None, keepdims: bool = False) -> np.ndarray: return np.sum(a, axis=axis, keepdims=keepdims)
@@ -138,6 +141,8 @@ class NumpyBackend(Backend):
     def randn(self, *shape: int) -> np.ndarray: return np.random.randn(*shape).astype(np.float32)
     def where(self, condition: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray: return np.where(condition, x, y)
     def uniform(self, lb: float, ub: float, shape: tuple[int, ...]) -> np.ndarray: return np.random.uniform(lb, ub, shape)
+    def pad(self, a: np.ndarray, pad_width: tuple[tuple[int, int], ...], mode: str = 'constant', constant_values: float = 0.0) -> np.ndarray:
+        return np.pad(a, pad_width=pad_width, mode=mode, constant_values=constant_values)
 
     # Elementwise mathematical functions
     def exp(self, a: np.ndarray) -> np.ndarray: return np.exp(a)

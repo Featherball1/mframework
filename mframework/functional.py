@@ -50,6 +50,9 @@ def max_eltwise(a: Tensor, b: Tensor) -> Tensor:
 def min_eltwise(a: Tensor, b: Tensor) -> Tensor:
     return a.min_eltwise(b)
 
+def conv_2d(X: Tensor, W: Tensor, b: Tensor | None = None, stride: int = 1, padding: int = 0) -> Tensor:
+    return X.conv_2d(W, bias=b, stride=stride, padding=padding)
+
 
 # Function ops
 def exp(a: Tensor) -> Tensor:
@@ -78,8 +81,8 @@ def reshape(a: Tensor, newshape: Tuple[int, ...]) -> Tensor:
 def gather(a: Tensor, indices: Tensor, axis: int = -1) -> Tensor:
     return a.gather(indices, axis=axis)
 
-# Factory methods
 
+# Factory methods
 def ones(shape: tuple[int, ...], requires_grad: bool = False, backend: Backend | None = None):
     if not backend: backend = get_backend()
     return Tensor(backend.ones(shape), backend=backend, requires_grad=requires_grad)

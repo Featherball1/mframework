@@ -1,9 +1,15 @@
 from mframework.autograd.function import Function, Context
-from mframework.autograd.autograd_utils import unbroadcast
+from mframework.autograd.autograd_utils import (
+    unbroadcast,
+    im2col,
+    col2im
+)
+
 
 """
 Reduction operations (sum, mean, etc.)
 """
+
 
 class Sum(Function):
     @staticmethod
@@ -70,6 +76,7 @@ class Mean(Function):
         g = ctx.backend.broadcast_to(g, a_shape)
         return (unbroadcast(g, a_shape, ctx.backend),)
 
+
 class Max(Function):
     @staticmethod
     def forward(ctx: Context, a, axis=None, keepdims=False):
@@ -89,6 +96,7 @@ class Max(Function):
         grad = mask * grad_out
         return (unbroadcast(grad, a_shape, backend),)
 
+
 class Min(Function):
     @staticmethod
     def forward(ctx: Context, a, axis=None, keepdims=False):
@@ -107,3 +115,103 @@ class Min(Function):
         mask, a_shape = ctx.saved_for_backward
         grad = mask * grad_out
         return (unbroadcast(grad, a_shape, backend),)
+
+
+class Conv2D(Function):
+    @staticmethod
+    def forward(ctx, X, W, b, stride=1, padding=0):
+        """
+        X: (N, C_in, H, W)
+        W: (C_out, C_in, kH, kW)
+        b: (C_out,) or None
+        """
+
+        backend = ctx.backend
+        N, C_in, H, W_in = X.shape
+        C_out, _, kH, kW = W.shape
+
+        H_out = (H + 2 * padding - kH) // stride + 1
+        W_out = (W_in + 2 * padding - kW) // stride + 1
+
+        Y = backend.zeros((N, C_out, H_out, W_out))
+
+        W_col = backend.reshape(W, (C_out, -1))  # (C_out, C_in*kH*kW)
+
+        X_cols = []
+        for n in range(N):
+            x_col = im2col(X[n], kH, kW, backend, stride, padding)
+            X_cols.append(x_col)
+
+            y_col = backend.matmul(W_col, x_col)
+
+            if b is not None:
+                y_col += backend.reshape(b, (-1, 1))
+
+            Y[n] = backend.reshape(y_col, (C_out, H_out, W_out))
+
+        # Save everything backward needs
+        ctx.save_for_backward(
+            X,
+            W,
+            X_cols,
+            b is not None,
+            stride,
+            padding,
+        )
+
+        return Y
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        """
+        grad_out: (N, C_out, H_out, W_out)
+        """
+
+        backend = ctx.backend
+        X, W, X_cols, has_bias, stride, padding = ctx.saved_for_backward
+
+        N, C_in, H, W_in = X.shape
+        C_out, _, kH, kW = W.shape
+        _, _, H_out, W_out = grad_out.shape
+
+        W_col = backend.reshape(W, (C_out, -1))
+
+        dX = backend.zeros(X.shape)
+        dW_col = backend.zeros(W_col.shape)
+        db = backend.zeros((C_out,)) if has_bias else None
+
+        for n in range(N):
+            dY_col = backend.reshape(
+                grad_out[n],
+                (C_out, H_out * W_out)
+            )
+
+            if has_bias:
+                db += backend.sum(dY_col, axis=1)
+
+            dW_col += backend.matmul(
+                dY_col,
+                backend.transpose(X_cols[n])
+            )
+
+            dX_col = backend.matmul(
+                backend.transpose(W_col),
+                dY_col
+            )
+
+            dX[n] = col2im(
+                dX_col,
+                (C_in, H, W_in),
+                backend,
+                kH,
+                kW,
+                stride,
+                padding
+            )
+
+        dW = backend.reshape(dW_col, W.shape)
+
+        if has_bias:
+            return (dX, dW, db, None, None,)
+        else:
+            return (dX, dW, None, None, None,)

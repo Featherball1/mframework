@@ -174,6 +174,8 @@ class Tensor:
         return self._apply(Max, self, axis=axis, keepdims=keepdims)
     def min(self, axis: int | None = None, keepdims: bool = False) -> "Tensor":
         return self._apply(Min, self, axis=axis, keepdims=keepdims)
+    def conv_2d(self, weight: "Tensor", bias: "Tensor", stride: int = 1, padding: int = 0) -> "Tensor":
+        return self._apply(Conv2D, self, weight, bias, stride=stride, padding=padding)
 
     # Shape operations
     def transpose(self) -> "Tensor":

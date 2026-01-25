@@ -402,7 +402,100 @@ op_db = [
         supports_autograd=True,
         broadcasts=False,
         backends=[BackendType.NUMPY],
-    )
-
-
+    ),
+    OpInfo(
+        name="conv2d",
+        op=F.conv_2d,
+        sample_inputs=lambda backend: [
+            # Example 1: Simple 3x3 input, 2x2 kernel, no padding, no stride
+            (
+                Tensor(
+                    backend.as_array([
+                        [[[1.0, 2.0, 3.0],
+                        [4.0, 5.0, 6.0],
+                        [7.0, 8.0, 9.0]]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([
+                        [[[1.0, 0.0],
+                        [0.0, 1.0]]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([0.0]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+            ),
+            # Example 2: Batch of 2, 5x5 input, 3x3 kernel, padding=1, stride=1
+            (
+                Tensor(
+                    backend.as_array([
+                        [[[1.0, 2.0, 3.0, 4.0, 5.0],
+                        [6.0, 7.0, 8.0, 9.0, 10.0],
+                        [11.0, 12.0, 13.0, 14.0, 15.0],
+                        [16.0, 17.0, 18.0, 19.0, 20.0],
+                        [21.0, 22.0, 23.0, 24.0, 25.0]]],
+                        [[[1.0, 2.0, 3.0, 4.0, 5.0],
+                        [6.0, 7.0, 8.0, 9.0, 10.0],
+                        [11.0, 12.0, 13.0, 14.0, 15.0],
+                        [16.0, 17.0, 18.0, 19.0, 20.0],
+                        [21.0, 22.0, 23.0, 24.0, 25.0]]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([
+                        [[[1.0, 0.0, -1.0],
+                        [2.0, 0.0, -2.0],
+                        [1.0, 0.0, -1.0]]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([0.5]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+            ),
+            # Example 3: Multiple output channels, 4x4 input, 2x2 kernel, stride=2, padding=0
+            (
+                Tensor(
+                    backend.as_array([
+                        [[[1.0, 2.0, 3.0, 4.0],
+                        [5.0, 6.0, 7.0, 8.0],
+                        [9.0, 10.0, 11.0, 12.0],
+                        [13.0, 14.0, 15.0, 16.0]]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([
+                        [[[1.0, 1.0],
+                        [1.0, 1.0]]],
+                        [[[2.0, -1.0],
+                        [-1.0, 2.0]]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                Tensor(
+                    backend.as_array([0.0, 1.0]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+            ),
+        ],
+        supports_autograd=True,
+        broadcasts=False,
+        backends=[BackendType.NUMPY],
+    ),
 ]
