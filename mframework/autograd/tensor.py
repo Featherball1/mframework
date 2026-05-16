@@ -99,6 +99,7 @@ class Tensor:
         "_backend",
         "_dtype",
         "_data",
+        "_device",
         "_requires_grad",
         "_node",
         "_grad"
@@ -108,6 +109,7 @@ class Tensor:
         self,
         data: BackendArray,
         backend: Backend | None = None,
+        device: str = "cpu",
         requires_grad: bool = False,
         dtype: DType = DType.FLOAT32,
     ) -> None:
@@ -115,6 +117,7 @@ class Tensor:
         self._backend = backend if backend else get_backend()
         self._dtype = dtype
         self._data = self._backend.as_array(data, dtype=dtype)
+        self._device = device
 
         # Data for autograd
         self._requires_grad = requires_grad
@@ -141,6 +144,9 @@ class Tensor:
         if type(other._backend) != type(self._backend):
             raise ValueError("Backend of `other` is not the same as backend of `self`.")
         
+        if other._device != self._device:
+            raise ValueError("Device of `other` is not the same as device of `self`.")
+
         return other
 
     # Arithmetic operations
@@ -203,6 +209,16 @@ class Tensor:
         other = self._promote_other(other)
         return self._apply(MinEltwise, self, other)
     
+    def to(self, device) -> "Tensor":
+        # TODO: Implement the physical transfer logic
+        return Tensor(
+            data=self._data,
+            backend=self._backend,
+            device=device,
+            requires_grad=False,
+            dtype=self._dtype
+        )
+
     def detach(self) -> "Tensor":
         """
         Returns a new Tensor that shares the same data but is detached from the computation graph.
@@ -239,9 +255,11 @@ class Tensor:
     def ndim(self) -> int:
         return self._data.ndim
     @property
-    def item(self):
+    def item(self) -> float:
         return float(self.data)
-
+    @property
+    def device(self) -> str:
+        return self._device
 
     def __str__(self) -> str:
         return f"""{self.__class__.__name__}(data={self._data}, requires_grad={self._requires_grad}, backend={self._backend})"""
