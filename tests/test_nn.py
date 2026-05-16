@@ -139,7 +139,7 @@ def test_flatten_changes_shape_correctly():
     flat = Flatten()
     x = F.ones((2, 3, 4))
     y = flat(x)
-    assert y.shape == (24,)
+    assert y.shape == (2, 12,)
 
 def test_cross_entropy_loss():
     """Test CrossEntropyLoss with various scenarios"""

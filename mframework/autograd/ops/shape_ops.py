@@ -38,12 +38,13 @@ class Flatten(Function):
     @staticmethod
     def forward(ctx, a):
         ctx.save_for_backward(a.shape)
-        return ctx.backend.flatten(a)
+        # Done to not flatten in the batch dimension
+        return ctx.backend.reshape(a, (a.shape[0], -1))
 
     @staticmethod
     def backward(ctx, grad_out):
         (a_shape,) = ctx.saved_for_backward
-        raise ctx.backend.reshape(grad_out, a_shape)
+        return (ctx.backend.reshape(grad_out, a_shape),) 
 
 class Gather(Function):
     @staticmethod

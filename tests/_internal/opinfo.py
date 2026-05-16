@@ -498,4 +498,75 @@ op_db = [
         broadcasts=False,
         backends=[BackendType.NUMPY],
     ),
+        OpInfo(
+        name="maxpool2d",
+        op=F.maxpool_2d,
+        sample_inputs=lambda backend: [
+            # Example 1: Simple 1x1x4x4 input, kernel=2, stride=2
+            (
+                Tensor(
+                    backend.as_array([[
+                        [
+                            [1.0, 2.0, 3.0, 4.0],
+                            [5.0, 6.0, 7.0, 8.0],
+                            [9.0, 10.0, 11.0, 12.0],
+                            [13.0, 14.0, 15.0, 16.0],
+                        ]
+                    ]]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                2,  # kernel_size
+                2,  # stride
+                0,  # padding
+            ),
+
+            # Example 2: Batch size 2, padding
+            (
+                Tensor(
+                    backend.as_array([
+                        [[
+                            [1.0, 3.0, 2.0],
+                            [4.0, 6.0, 5.0],
+                            [7.0, 9.0, 8.0],
+                        ]],
+                        [[
+                            [9.0, 7.0, 8.0],
+                            [6.0, 4.0, 5.0],
+                            [3.0, 1.0, 2.0],
+                        ]]
+                    ]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                2,  # kernel_size
+                1,  # stride
+                1,  # padding
+            ),
+
+            # Example 3: Non-overlapping pooling, larger kernel
+            (
+                Tensor(
+                    backend.as_array([[
+                        [
+                            [1.0, 2.0, 3.0, 4.0, 5.0],
+                            [6.0, 7.0, 8.0, 9.0, 10.0],
+                            [11.0, 12.0, 13.0, 14.0, 15.0],
+                            [16.0, 17.0, 18.0, 19.0, 20.0],
+                            [21.0, 22.0, 23.0, 24.0, 25.0],
+                        ]
+                    ]]),
+                    backend=backend,
+                    requires_grad=True
+                ),
+                3,  # kernel_size
+                2,  # stride
+                0,  # padding
+            ),
+        ],
+        supports_autograd=True,
+        broadcasts=False,
+        backends=[BackendType.NUMPY],
+    ),
+
 ]

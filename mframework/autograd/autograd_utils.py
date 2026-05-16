@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 
-from mframework.autograd.backend import Backend, BackendArray
+from mframework.autograd.backend import Backend, BackendArray, BackendType
 
 def unbroadcast(grad: BackendArray, shape: Tuple[int, ...], backend: Backend) -> BackendArray:
     """
@@ -73,48 +73,3 @@ def gradcheck(fn, inputs, backend: Backend, eps=1e-4, tol=1e-3):
         assert np.allclose(
             x.grad, numerical_grad, atol=tol
         ), f"Gradcheck failed for {fn.__name__} at {idx}"
-
-def im2col(x, kH, kW, backend, stride=1, padding=0):
-    C, H, W = x.shape
-
-    if padding > 0:
-        x = backend.pad(x, ((0,0),(padding,padding),(padding,padding)))
-
-    H_p, W_p = x.shape[1:]
-    out_h = (H_p - kH) // stride + 1
-    out_w = (W_p - kW) // stride + 1
-
-    cols = []
-    for i in range(out_h):
-        for j in range(out_w):
-            patch = x[
-                :,
-                i*stride:i*stride+kH,
-                j*stride:j*stride+kW
-            ]
-            cols.append(patch.flatten())
-
-    return backend.stack(cols, axis=1)
-
-def col2im(cols, x_shape, backend, kH, kW, stride=1, padding=0):
-    C, H, W = x_shape
-    H_p, W_p = H + 2*padding, W + 2*padding
-    x_padded = backend.zeros((C, H_p, W_p))
-
-    out_h = (H_p - kH) // stride + 1
-    out_w = (W_p - kW) // stride + 1
-
-    col_idx = 0
-    for i in range(out_h):
-        for j in range(out_w):
-            patch = cols[:, col_idx].reshape(C, kH, kW)
-            x_padded[
-                :,
-                i*stride:i*stride+kH,
-                j*stride:j*stride+kW
-            ] += patch
-            col_idx += 1
-
-    if padding > 0:
-        return x_padded[:, padding:-padding, padding:-padding]
-    return x_padded

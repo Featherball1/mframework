@@ -1,8 +1,7 @@
 from mframework.autograd.function import Function, Context
+from mframework.dtypes import DType
 from mframework.autograd.autograd_utils import (
     unbroadcast,
-    im2col,
-    col2im
 )
 
 
@@ -120,12 +119,6 @@ class Min(Function):
 class Conv2D(Function):
     @staticmethod
     def forward(ctx, X, W, b, stride=1, padding=0):
-        """
-        X: (N, C_in, H, W)
-        W: (C_out, C_in, kH, kW)
-        b: (C_out,) or None
-        """
-
         backend = ctx.backend
         N, C_in, H, W_in = X.shape
         C_out, _, kH, kW = W.shape
@@ -133,85 +126,119 @@ class Conv2D(Function):
         H_out = (H + 2 * padding - kH) // stride + 1
         W_out = (W_in + 2 * padding - kW) // stride + 1
 
-        Y = backend.zeros((N, C_out, H_out, W_out))
+        # (N, C_in*kH*kW, H_out*W_out)
+        X_col = backend.stack([backend.im2col(X[n], kH, kW, stride, padding) for n in range(N)])
 
-        W_col = backend.reshape(W, (C_out, -1))  # (C_out, C_in*kH*kW)
+        # (C_out, C_in*kH*kW)
+        W_col = backend.reshape(W, (C_out, -1))
 
-        X_cols = []
-        for n in range(N):
-            x_col = im2col(X[n], kH, kW, backend, stride, padding)
-            X_cols.append(x_col)
+        # (N, C_out, H_out*W_out)
+        Y = backend.matmul(W_col, X_col)
 
-            y_col = backend.matmul(W_col, x_col)
+        if b is not None:
+            Y = Y + backend.reshape(b, (1, C_out, 1))
 
-            if b is not None:
-                y_col += backend.reshape(b, (-1, 1))
+        Y = backend.reshape(Y, (N, C_out, H_out, W_out))
 
-            Y[n] = backend.reshape(y_col, (C_out, H_out, W_out))
-
-        # Save everything backward needs
-        ctx.save_for_backward(
-            X,
-            W,
-            X_cols,
-            b is not None,
-            stride,
-            padding,
-        )
+        ctx.save_for_backward(X, W)
+        ctx.X_col = X_col
+        ctx.b_exists = b is not None
+        ctx.stride = stride
+        ctx.padding = padding
 
         return Y
 
     @staticmethod
     def backward(ctx, grad_out):
-        """
-        grad_out: (N, C_out, H_out, W_out)
-        """
-
         backend = ctx.backend
-        X, W, X_cols, has_bias, stride, padding = ctx.saved_for_backward
-
+        X, W = ctx.saved_for_backward
+        X_col = ctx.X_col
         N, C_in, H, W_in = X.shape
         C_out, _, kH, kW = W.shape
         _, _, H_out, W_out = grad_out.shape
 
+        # (C_out, C_in*kH*kW)
         W_col = backend.reshape(W, (C_out, -1))
+        dY = backend.reshape(grad_out, (N, C_out, H_out * W_out))
 
-        dX = backend.zeros(X.shape)
-        dW_col = backend.zeros(W_col.shape)
-        db = backend.zeros((C_out,)) if has_bias else None
+        # db: sum over batch and spatial dims
+        db = backend.sum(dY, axis=(0, 2)) if ctx.b_exists else None
 
-        for n in range(N):
-            dY_col = backend.reshape(
-                grad_out[n],
-                (C_out, H_out * W_out)
-            )
-
-            if has_bias:
-                db += backend.sum(dY_col, axis=1)
-
-            dW_col += backend.matmul(
-                dY_col,
-                backend.transpose(X_cols[n])
-            )
-
-            dX_col = backend.matmul(
-                backend.transpose(W_col),
-                dY_col
-            )
-
-            dX[n] = col2im(
-                dX_col,
-                (C_in, H, W_in),
-                backend,
-                kH,
-                kW,
-                stride,
-                padding
-            )
-
+        # dW: (C_out, C_in*kH*kW)
+        dW_col = backend.sum(
+            backend.matmul(dY, backend.transpose(X_col, (0, 2, 1))),
+            axis=0
+        )
         dW = backend.reshape(dW_col, W.shape)
 
-        if has_bias:
-            return (dX, dW, db, None, None,)
+        # dX_col: (N, C_in*kH*kW, H_out*W_out)
+        dX_col = backend.matmul(backend.transpose(W_col), dY)
+
+        # col2im handles full batch at once
+        dX = backend.col2im(dX_col, (N, C_in, H, W_in), kH, kW, ctx.stride, ctx.padding)
+
+        if ctx.b_exists:
+            return (dX, dW, db, None, None)
         else:
-            return (dX, dW, None, None, None,)
+            return (dX, dW, None, None, None)
+
+
+class MaxPool2D(Function):
+    @staticmethod
+    def forward(ctx, X, kernel_size, stride=1, padding=0):
+        backend = ctx.backend
+        N, C, H, W = X.shape
+        kH, kW = kernel_size, kernel_size
+        H_out = (H + 2 * padding - kH) // stride + 1
+        W_out = (W + 2 * padding - kW) // stride + 1
+
+        # (N, C, kH*kW, H_out*W_out)
+        X_col = backend.stack([
+            backend.stack([backend.im2col(X[n, c][None], kH, kW, stride, padding) for c in range(C)])
+            for n in range(N)
+        ])
+
+        # (N, C, H_out*W_out)
+        max_indices = backend.argmax(X_col, axis=2)
+        Y = backend.max(X_col, axis=2).reshape(N, C, H_out, W_out)
+
+        ctx.save_for_backward(X.shape, kernel_size, stride, padding, max_indices)
+        return Y
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        X_shape, kernel_size, stride, padding, max_indices = ctx.saved_for_backward
+        backend = ctx.backend
+        N, C, H_out, W_out = grad_out.shape
+        kH, kW = kernel_size, kernel_size
+        H, W = X_shape[2], X_shape[3]
+        hw = H_out * W_out
+
+        # grad_col: (N, C, kH*kW, H_out*W_out)
+        grad_col = backend.zeros((N, C, kH * kW, hw))
+        grad_col[
+            backend.arange(N)[:, None, None],
+            backend.arange(C)[None, :, None],
+             # (N, C, H_out*W_out)
+            max_indices,
+            backend.arange(hw)[None, None, :]
+        ] = grad_out.reshape(N, C, hw)
+
+        # Merge N and C into one batch dim for col2im
+        # (N*C, kH*kW, H_out*W_out)
+        grad_col_flat = grad_col.reshape(N * C, kH * kW, H_out * W_out)
+
+        # col2im expects (batch, C*kH*kW, H_out*W_out)
+        # with C=1 here since we flattened N and C together
+        dX = backend.col2im(
+            grad_col_flat,
+            (N * C, 1, H, W),
+            kH, kW,
+            stride, padding
+        ).reshape(N, C, H, W)
+
+        return (dX, None, None, None)
+
+
+class AvgPool2D:
+    pass

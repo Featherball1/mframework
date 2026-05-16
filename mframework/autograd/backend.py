@@ -3,6 +3,10 @@ from typing import Union
 from enum import Enum
 
 from mframework.dtypes import DType
+from mframework.autograd.backend_kernels import (
+    im2col_fast_np,
+    col2im_fast_np
+)
 
 """
 A Backend contains a registry of primitive operations.
@@ -65,6 +69,9 @@ class Backend:
     def min_eltwise(self, a: BackendArray, b: BackendArray) -> BackendArray : raise NotImplementedError
     def argmax(self, a: BackendArray, axis: int | None = None, keepdims: bool = False) -> BackendArray: raise NotImplementedError
     def argmin(self, a: BackendArray, axis: int | None = None, keepdims: bool = False) -> BackendArray: raise NotImplementedError
+    def max(self, a: BackendArray, axis: int | None = None, keepdims: bool = False): raise NotImplementedError
+    def im2col(self, x: BackendArray, kH: int, kW: int, stride: int = 1, padding: int = 0): raise NotImplementedError
+    def col2im(self, X_col: BackendArray, x_shape: tuple[int, ...], k: int, kW: int, stride: int = 1, padding: int = 0): raise NotImplementedError
 
     # BackendArray creation
     def ones(self, shape: tuple[int, ...]) -> BackendArray : raise NotImplementedError
@@ -134,6 +141,9 @@ class NumpyBackend(Backend):
     def argmin(self, a: np.ndarray, axis: int | None = None, keepdims: bool = False) -> np.ndarray: return np.argmin(a, axis=axis, keepdims=keepdims)
     def arange(self, n: int, dtype=DType.INT64) -> np.ndarray: return np.arange(n, dtype=self.dtype_mapping[dtype])
     def indices(self, shape: tuple[int, ...], dtype=DType.INT64) -> np.ndarray: return np.indices(shape, dtype=self.dtype_mapping[dtype])
+    def max(self, a: BackendArray, axis: int | None = None, keepdims: bool = False): return np.max(a, axis=axis)
+    def im2col(self, x: BackendArray, kH: int, kW: int, stride: int = 1, padding: int = 0): return im2col_fast_np(x, kH, kW, stride=stride, padding=padding)
+    def col2im(self, X_col: BackendArray, x_shape: tuple[int, ...], kH: int, kW: int, stride: int = 1, padding: int = 0): return col2im_fast_np(X_col, x_shape, kH, kW, stride=stride, padding=padding)
 
     # BackendArray creation
     def ones(self, shape: tuple[int, ...], dtype=DType.FLOAT32) -> np.ndarray: return np.ones(shape, dtype=self.dtype_mapping[dtype])

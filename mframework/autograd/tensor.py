@@ -176,6 +176,8 @@ class Tensor:
         return self._apply(Min, self, axis=axis, keepdims=keepdims)
     def conv_2d(self, weight: "Tensor", bias: "Tensor", stride: int = 1, padding: int = 0) -> "Tensor":
         return self._apply(Conv2D, self, weight, bias, stride=stride, padding=padding)
+    def maxpool_2d(self, kernel_size: int, stride: int = 1, padding: int = 0) -> "Tensor":
+        return self._apply(MaxPool2D, self, kernel_size=kernel_size, stride=stride, padding=padding)
 
     # Shape operations
     def transpose(self) -> "Tensor":

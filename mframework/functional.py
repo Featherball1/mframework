@@ -53,6 +53,8 @@ def min_eltwise(a: Tensor, b: Tensor) -> Tensor:
 def conv_2d(X: Tensor, W: Tensor, b: Tensor | None = None, stride: int = 1, padding: int = 0) -> Tensor:
     return X.conv_2d(W, bias=b, stride=stride, padding=padding)
 
+def maxpool_2d(X: Tensor, kernel_size: int, stride: int = 1, padding: int = 0) -> Tensor:
+    return X.maxpool_2d(kernel_size=kernel_size, stride=stride, padding=padding)
 
 # Function ops
 def exp(a: Tensor) -> Tensor:

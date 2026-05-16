@@ -70,6 +70,28 @@ class Conv2D(Module):
         )
 
 
+class MaxPool2D(Module):
+    def __init__(
+        self,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+    ):
+        super().__init__()
+
+        self._kernel_size: int = kernel_size
+        self._stride: int = stride
+        self._padding: int = padding
+
+    def forward(self, x: Tensor) -> Tensor:
+        return F.maxpool_2d(
+            x,
+            kernel_size=self._kernel_size,
+            stride=self._stride,
+            padding=self._padding
+        )
+
+
 # Activation
 class ReLU(Module):
     def __init__(self):
