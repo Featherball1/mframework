@@ -21,52 +21,6 @@ def im2col_fast_np(x, kH, kW, stride=1, padding=0):
     return patches.reshape(C*kH*kW, out_h*out_w)
 
 def col2im_fast_np(X_col, x_shape, kH, kW, stride=1, padding=0):
-    """
-    X_col: (N, C*kH*kW, H_out*W_out)
-    x_shape: (N, C, H, W)
-    """
-    N, C, H, W = x_shape
-    H_pad, W_pad = H + 2*padding, W + 2*padding
-    H_out = (H_pad - kH) // stride + 1
-    W_out = (W_pad - kW) // stride + 1
-
-    X_pad = np.zeros((N, C, H_pad, W_pad))
-
-    # (N, C, kH, kW, H_out, W_out)
-    X_col_reshaped = X_col.reshape(N, C, kH, kW, H_out, W_out)
-
-    # Precompute output patch positions: H_out and W_out index arrays
-    h_idx = np.arange(H_out) * stride   # (H_out,)
-    w_idx = np.arange(W_out) * stride   # (W_out,)
-
-    for i in range(kH):
-        for j in range(kW):
-            # Explicit destination rows/cols for this kernel position
-            h_pos = h_idx + i   # (H_out,)
-            w_pos = w_idx + j   # (W_out,)
-
-            # Use np.add.at with explicit indices via broadcasting
-            # h_pos[:, None]: (H_out, 1), w_pos[None, :]: (1, W_out)
-            np.add.at(
-                X_pad,
-                np.ix_(
-                    np.arange(N),
-                    np.arange(C),
-                    h_pos,
-                    w_pos,
-                ),
-                X_col_reshaped[:, :, i, j, :, :]   # (N, C, H_out, W_out)
-            )
-
-    if padding > 0:
-        return X_pad[:, :, padding:-padding, padding:-padding]
-    return X_pad
-
-
-# This is apparently even faster
-
-"""
-def col2im_fast(X_col, x_shape, kH, kW, stride=1, padding=0):
     N, C, H, W = x_shape
     H_pad, W_pad = H + 2*padding, W + 2*padding
     H_out = (H_pad - kH) // stride + 1
@@ -98,4 +52,3 @@ def col2im_fast(X_col, x_shape, kH, kW, stride=1, padding=0):
     if padding > 0:
         return X_pad[:, :, padding:-padding, padding:-padding]
     return X_pad
-"""
